@@ -14,6 +14,6 @@ else:
 
 OPERATING_DIR = str.format("{0}{1}", HOME, THESIS_DIR)
 
-
-
+CLEAN_DIR = str.format("{0}{1}", OPERATING_DIR, CLEAN_AUDIO_DIR)
+OUTPUT_DIR = str.format("{0}{1}", OPERATING_DIR, CONVERT_OUTPUT_DIR)
 
