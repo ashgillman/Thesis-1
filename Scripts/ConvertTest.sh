@@ -1,22 +1,40 @@
 #!/bin/sh
 
 OPERATING_DIR="$HOME/Dropbox/Thesis/Data"
-files=$OPERATING_DIR/*/*/*/*
+FILES=$OPERATING_DIR/*/*/*/*/*
+OUTPUT="$HOME/Documents/Data"
+
+OPERATING_SIZE=${#OPERATING_DIR}
 
 echo "Directory containing the audio data to be converted is \n$OPERATING_DIR"
 
-cd $OPERATING_DIR
-
-find . | egrep -i -o -e .*\.wv[0-9] > Audio_List.txt
-# Extract just the file names
-find . | egrep -i -o -e .{8}\.wv[0-9] > Audio_Name_List.txt
-
-
-
-for f in $files
+for f in $FILES
 do
-    name=$(find "$f" | egrep -i -o -e .{8}\.wv[0-9])
-    echo "Filename is: $name"
+    # Find all files within the FILES directory that end with .wv1/2
+	name=$(find "$f" | egrep -i -o -e .*\.wv[1,2])
+
+    # Determine the length of the found string
+    size=${#name}
+
+    # Subtract 4 from the length of the string (extension .wv*)
+    size=$((size-4))
+
+    # Check whether or not the length is > 0
+    # Length < 0 represents no matching file
+    if [ $size -le 0 ]
+    then
+        continue
+    fi
+
+    # Strip the file extension off the name string
+    name=${name:0:$size}
+
+    # Strip the abitrary OPERATING_DIR directories from the string
+    name=${name:$OPERATING_SIZE}
+
+    # Run the .wv* to .wav conversion
+    sph2pipe -p -f rif "$f" "$OUTPUT/$name.wav"
+
 done
 
 exit 0
