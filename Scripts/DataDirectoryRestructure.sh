@@ -3,7 +3,7 @@
 # Initialise all the folder locations
 OPERATING_DIR="$HOME/Dropbox/Thesis/Data"
 FILES=$OPERATING_DIR/*/*/*/*/*
-OUTPUT_DIR="$OPERATING_DIR/Restructure"
+OUTPUT_DIR="$OPERATING_DIR/Restructure/Audio"
 
 # Specify the length of the filename + extension
 FILENAME_EXTENSION_LENGTH=12

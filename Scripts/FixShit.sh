@@ -4,7 +4,7 @@
 OPERATING_DIR="$HOME/Dropbox/Thesis"
 DATA_DIR="$OPERATING_DIR/Data/Restructure"
 FOLDERS="$OPERATING_DIR/Code/Scripts/FoldersToFix"
-OUTPUT_DIR="$DATA_DIR/Test Data"
+OUTPUT_DIR="$DATA_DIR/Audio/TestData"
 
 # Specify the length of the filename + extension
 FILENAME_EXTENSION_LENGTH=12
