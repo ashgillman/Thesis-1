@@ -4,7 +4,11 @@ OPERATING_DIR="$HOME/Dropbox/Thesis/Data"
 FILES=$OPERATING_DIR/*/*/*/*/*
 OUTPUT="$HOME/Documents/Data"
 
+# Size of the standard operating directory structure
 OPERATING_SIZE=${#OPERATING_DIR}
+
+# Length of the default filename + ext (/C*******.ext)
+FILE_AND_EXT_LENGTH=13
 
 echo "Directory containing the audio data to be converted is \n$OPERATING_DIR"
 
@@ -14,7 +18,7 @@ do
     # Grab the underlying directory structure for the data
     dirStruct=${f:$OPERATING_SIZE}
     length=${#dirStruct}
-    length=$((length-13))
+    length=$((length-FILE_AND_EXT_LENGTH))
     dirStruct=${dirStruct:0:length}
 
     # Create the directory structure for the output data
