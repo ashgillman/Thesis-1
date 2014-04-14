@@ -89,7 +89,7 @@ Recognition type (word vs.
 Feature Extraction
 \end_layout
 
-\begin_layout Subsubsection
+\begin_layout Standard
 Mel-frequency Cepstral Coefficients (MFCC)
 \end_layout
 

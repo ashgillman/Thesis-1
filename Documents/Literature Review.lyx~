@@ -72,49 +72,25 @@ Literature Review
 Speech Processing
 \end_layout
 
-\begin_layout Subsubsection
+\begin_layout Standard
 Speaker dependence
 \end_layout
 
-\begin_layout Subsubsection
+\begin_layout Standard
 Speech type (continuous, discontinuous, isolated)
 \end_layout
 
-\begin_layout Subsubsection
+\begin_layout Standard
 Recognition type (word vs.
  phoneme)
 \end_layout
 
-\begin_layout Subsection
+\begin_layout Subsubsection
 Feature Extraction
 \end_layout
 
-\begin_layout Subsubsection
-Mel-frequency Cepstral Coefficients (MFCC)
-\end_layout
-
-\begin_layout Subsection
+\begin_layout Standard
 Classification Techniques
-\end_layout
-
-\begin_layout Subsubsection
-Hidden Markov Models
-\end_layout
-
-\begin_layout Subsubsection
-Artificial Neural Networks
-\end_layout
-
-\begin_layout Subsubsection
-Dynamic Time Warping
-\end_layout
-
-\begin_layout Subsection
-Robust speech recognition
-\end_layout
-
-\begin_layout Subsection
-Auditory data
 \end_layout
 
 \end_body
