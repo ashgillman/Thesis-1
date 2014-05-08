@@ -1,4 +1,4 @@
 .DS_Store
 Documents/*.lyx~
 Documents/#*
-
+Documents.*.pdf
