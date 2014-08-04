@@ -1,4 +1,7 @@
 .DS_Store
 Documents/*.lyx~
 Documents/#*
-Documents.*.pdf
+Documents/*.pdf
+*.asv
+*.wav
+*.csv
