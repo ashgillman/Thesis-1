@@ -1,8 +1,9 @@
 .DS_Store
-Documents/*.lyx~
-Documents/#*
-Documents/*.pdf
+Documents/
+Voicebox/
+ClassifierOutput/
+
 *.asv
 *.wav
 *.csv
-Voicebox/
+

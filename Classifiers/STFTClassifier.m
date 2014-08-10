@@ -1,52 +1,53 @@
+function [STFT] = STFTClassifier(audio, Fs, overlap, frameSize, peakCount)
 
-WAV_FILE = 'C3CA010A.wav';
-OUTPUT_FILE = 'Peaks.csv';
-delete(OUTPUT_FILE);
+    % Determine the number of samples per time step
+    samplesPerStep = ceil(Fs * frameSize);
 
-% Initialise STFT constants
-STFT_TIME_STEP = 20; % ms
-NUMBER_OF_PEAKS = 10;
+    startIndex = 1;
+    count = 1;
+    audioLength = length(audio);
 
-[audio,Fs] = audioread(WAV_FILE);
+    while startIndex < audioLength
 
-% Determine the number of samples per time step
-samplesPerStep = Fs / (1000/STFT_TIME_STEP);
+        % Determine the end index for the STFT
+        endIndex = startIndex+samplesPerStep;
+        if endIndex > audioLength
+            endIndex = audioLength;
+        end
 
-startIndex = 1;
-audioLength = length(audio);
+        % Extract the data for this time step
+        sample = audio(startIndex:endIndex);
 
-while startIndex < audioLength
-    
-    % Determine the end index for the STFT
-    endIndex = startIndex+samplesPerStep;  
-    if endIndex > audioLength
-        endIndex = audioLength;
+        % Perform the fft and strip the reflection
+        transform = fft(sample);
+        transform = transform(1:ceil(length(transform)/2));
+
+        % Set up the frequency data
+        freq = linspace(0, Fs/2, length(sample)/2+1);
+
+        % Find all the peaks and sort them in decending order of magnitude
+        [~, peakLocs] = findpeaks(abs(transform),'SortStr','descend');
+
+        % Take only the top X peaks (specified in constants)
+        noOfPeaks = length(peakLocs);
+        if peakCount > noOfPeaks
+            topXPeaks = peakLocs;
+        else
+            topXPeaks = peakLocs(1:peakCount);
+            noOfPeaks = 10;
+        end
+
+        % Determine the frequency corresponding to each peak
+        peakFreqs = zeros(1, peakCount);
+        peakFreqs(1,1:noOfPeaks) = round(freq(topXPeaks));
+        peakFreqs = sort(peakFreqs);
+        
+        STFT(count,:) = peakFreqs;
+
+        % Increment the time step
+        startIndex = startIndex + samplesPerStep;
+        count = count + 1;
     end
-    
-    % Extract the data for this time step
-    sample = audio(startIndex:endIndex);
-
-    % Perform the fft and strip the reflection
-    transform = fft(sample);    
-    transform = transform(1:ceil(length(transform)/2));
-    
-    % Set up the frequency data
-    freq = linspace(0, Fs/2, length(sample)/2+1);
-  
-    % Find all the peaks and sort them in decending order of magnitude
-    [~, peakLocs] = findpeaks(abs(transform),'SortStr','descend');
-    
-    % Take only the top X peaks (specified in constants)
-    topXPeaks = peakLocs(1:NUMBER_OF_PEAKS);
-    
-    % Determine the frequency corresponding to each peak
-    peakFreqs = sort(round(freq(topXPeaks)));
-
-    % Write the data out
-    dlmwrite(OUTPUT_FILE, peakFreqs,'-append');
-    
-    % Increment the time step
-    startIndex = startIndex + samplesPerStep;
 end
 
 
