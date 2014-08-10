@@ -1,8 +1,8 @@
 #!/bin/sh
 
-OPERATING_DIR="$HOME/Dropbox/Thesis/Data"
-FILES=$OPERATING_DIR/*/*/*/*/*
-OUTPUT="$HOME/Documents/Data"
+OPERATING_DIR="/Volumes/External/RawData"
+FILES=$OPERATING_DIR/*/*/*/*/*/*
+OUTPUT="/Volumes/External/ConvertData"
 
 # Size of the standard operating directory structure
 OPERATING_SIZE=${#OPERATING_DIR}
@@ -12,8 +12,12 @@ FILE_AND_EXT_LENGTH=13
 
 echo "Directory containing the audio data to be converted is \n$OPERATING_DIR"
 
+count=0
+
 for f in $FILES
 do
+
+
 
     # Grab the underlying directory structure for the data
     dirStruct=${f:$OPERATING_SIZE}
