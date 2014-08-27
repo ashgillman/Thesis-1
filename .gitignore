@@ -2,6 +2,7 @@
 Documents/
 Voicebox/
 ClassifierOutput/
+Scripts/.idea
 
 *.asv
 *.wav
