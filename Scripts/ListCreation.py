@@ -1,24 +1,24 @@
 import os
 import platform
+import shutil
 
-def listAllFiles(dir, ext):
-    return [f for f in os.listdir(dir) if ext in f]
-
-
+""" Define System Directory Constants """
 if platform.system() == "Windows":
-    TRAINING_AUDIO_DIR = "J:\\ConvertData\\Thesis Data\\Desk\\Testing\\Development\\"
-    OUTPUT_DIR = "J:\\ClassifierTraining\\Lists\\"
-    CLASSIFIER_DIR = "J:\\ClassifierTraining\\Classifiers\\"
+    FILE_START = "J:\\"
 else:
-    TRAINING_AUDIO_DIR = "\\Volumes\\External\\ConvertData\\Thesis Data\\Desk\\Testing\\Development\\"
-    OUTPUT_DIR = "\\Volumes\\External\\ClassifierTraining\\Lists\\"
-    CLASSIFIER_DIR ="\\Volumes\\External\\ClassifierTraining\\Classifiers\\"
+    FILE_START = "\\Volumes\\External\\"
 
+# Directory Constants
+TRAINING_AUDIO_DIR = FILE_START + "ConvertData\\Thesis Data\\Desk\\Testing\\Development\\"
+OUTPUT_DIR = FILE_START + "ClassifierTraining\\Lists\\"
+CLASSIFIER_DIR = FILE_START + "ClassifierTraining\\Classifiers\\"
+DATA_DIR = FILE_START + "ConvertData\\"
 
+# Extension Constants
 MFC_EXT = ".mfc"
 AUDIO_EXT = ".wav"
 PHONEME_EXT = ".phn"
-
+LAB_EXT = ".lab"
 CLASSIFIER_EXTS = [".stft", ".lpc", ".mfc", ".nnmf"]
 
 # Script File Extension
@@ -26,6 +26,29 @@ SCRIPT_EXT = ".scp"
 
 # Master Label File Extension
 MLF_EXT = ".mlf"
+
+
+def listAllFiles(dir, ext):
+    return [name for name in [f for r,d,f in os.walk(dir)][0] if ext in name]
+
+def createLabFiles():
+    """
+    Recursively traverses the entire audio data directory looking for .phn files and copies them into a .lab file if it
+    doesn't already exist.
+    """
+    for root, subdirs, files in os.walk(DATA_DIR):
+        for file in files:
+            [name, ext] = file.split(".")
+            phnFile = os.path.join(root, file)
+            labFile = phnFile[0:-4] + LAB_EXT
+
+            if phnFile.lower().endswith(PHONEME_EXT) and not os.path.isfile(labFile):
+                shutil.copyfile(phnFile, labFile)
+
+
+
+
+createLabFiles()
 
 
 """ Generate WAV -> MFC list """
@@ -36,7 +59,7 @@ open(wavConvertFile, 'w').close()
 
 for folder in os.listdir(TRAINING_AUDIO_DIR):
 
-    dir = str.format("{0}{1}", TRAINING_AUDIO_DIR, folder)
+    dir = str.format("{0}{1}\\", TRAINING_AUDIO_DIR, folder)
     files = listAllFiles(dir, AUDIO_EXT)
 
     fid = open(wavConvertFile, 'a+')
