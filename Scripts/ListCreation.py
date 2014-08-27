@@ -6,17 +6,19 @@ def listAllFiles(dir, ext):
 
 
 if platform.system() == "Windows":
-    AUDIO_DIR = "J:\\ConvertData\\Thesis Data\\Desk\\Testing\\Development\\"
+    TRAINING_AUDIO_DIR = "J:\\ConvertData\\Thesis Data\\Desk\\Testing\\Development\\"
     OUTPUT_DIR = "J:\\ClassifierTraining\\Lists\\"
     CLASSIFIER_DIR = "J:\\ClassifierTraining\\Classifiers\\"
 else:
-    AUDIO_DIR = "\\Volumes\\External\\ConvertData\\Thesis Data\\Desk\\Testing\\Development\\"
+    TRAINING_AUDIO_DIR = "\\Volumes\\External\\ConvertData\\Thesis Data\\Desk\\Testing\\Development\\"
     OUTPUT_DIR = "\\Volumes\\External\\ClassifierTraining\\Lists\\"
     CLASSIFIER_DIR ="\\Volumes\\External\\ClassifierTraining\\Classifiers\\"
 
 
 MFC_EXT = ".mfc"
 AUDIO_EXT = ".wav"
+PHONEME_EXT = ".phn"
+
 CLASSIFIER_EXTS = [".stft", ".lpc", ".mfc", ".nnmf"]
 
 # Script File Extension
@@ -25,21 +27,19 @@ SCRIPT_EXT = ".scp"
 # Master Label File Extension
 MLF_EXT = ".mlf"
 
-# Clear WAV -> MFC conversion file, to allow appending
-convertFile = str.format("{0}{1}{2}", OUTPUT_DIR, "WAV_MFC_Conversion_List", SCRIPT_EXT)
-open(convertFile, 'w').close()
-
 
 """ Generate WAV -> MFC list """
 
-for folder in os.listdir(AUDIO_DIR):
+# Clear WAV -> MFC conversion file, to allow appending
+wavConvertFile = str.format("{0}{1}{2}", OUTPUT_DIR, "WAV_MFC_Conversion_List", SCRIPT_EXT)
+open(wavConvertFile, 'w').close()
 
-    dir = str.format("{0}{1}", AUDIO_DIR, folder)
+for folder in os.listdir(TRAINING_AUDIO_DIR):
+
+    dir = str.format("{0}{1}", TRAINING_AUDIO_DIR, folder)
     files = listAllFiles(dir, AUDIO_EXT)
 
-    outputFile = str.format("{0}{1}{2}", OUTPUT_DIR, "WAV_MFC_Conversion_List", SCRIPT_EXT)
-
-    fid = open(outputFile, 'a+')
+    fid = open(wavConvertFile, 'a+')
 
     for file in files:
         [name, _] = file.split('.')
@@ -73,6 +73,36 @@ for ext in CLASSIFIER_EXTS:
 
 
 """ Master Label File Creation """
+
+MLFFile = str.format("{0}{1}{2}", OUTPUT_DIR, "phones0", MLF_EXT)
+
+# Overwrite the MLF file
+fid = open(MLFFile, 'w')
+fid.write("#!MLF!#\n")
+fid.close()
+
+for folder in os.listdir(TRAINING_AUDIO_DIR):
+
+    dir = str.format("{0}{1}\\", TRAINING_AUDIO_DIR, folder)
+    files = listAllFiles(dir, PHONEME_EXT.upper())
+
+    for file in files:
+
+        label = str.format("\"*/{0}\"", file)
+
+        phn = open(dir + file, 'r+')
+
+        mlf = open(MLFFile, 'a+')
+
+        mlf.write(label + "\n")
+
+        for line in phn:
+            mlf.write(line)
+
+        mlf.write(".\n")
+
+        phn.close()
+        mlf.close()
 
 
 
