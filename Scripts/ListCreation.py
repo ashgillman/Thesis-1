@@ -2,6 +2,8 @@ import os
 import platform
 import shutil
 
+from time import sleep
+
 """ Define System Directory Constants """
 if platform.system() == "Windows":
     FILE_START = "J:\\"
@@ -13,6 +15,7 @@ TRAINING_AUDIO_DIR = FILE_START + "ConvertData\\Thesis Data\\Desk\\Testing\\Deve
 OUTPUT_DIR = FILE_START + "ClassifierTraining\\Lists\\"
 CLASSIFIER_DIR = FILE_START + "ClassifierTraining\\Classifiers\\"
 DATA_DIR = FILE_START + "ConvertData\\"
+CONFIG_DIR = FILE_START + "ClassifierTraining\\Configs\\"
 
 # Extension Constants
 MFC_EXT = ".mfc"
@@ -29,6 +32,13 @@ MLF_EXT = ".mlf"
 
 # Phoneme Constants
 SILENCE_PHN = "sil"
+
+# Config File Locations
+# TODO: Actually write configs
+MFC_CONFIG = CONFIG_DIR + "MFC_Config.ini"
+HCOMPV_CONFIG = CONFIG_DIR + "HCompV_Config.ini"
+HEREST_CONFIG = CONFIG_DIR + "Reestimation_Config.ini"
+
 
 def listAllFiles(dir, ext):
     return [name for name in [f for r,d,f in os.walk(dir)][0] if ext in name]
@@ -49,7 +59,6 @@ def createLabFiles():
 
 
 """ Generate WAV -> MFC list """
-
 def generateConversionList():
     # Clear WAV -> MFC conversion file, to allow appending
     wavConvertFile = str.format("{0}{1}{2}", OUTPUT_DIR, "WAV_MFC_Conversion_List", SCRIPT_EXT)
@@ -125,6 +134,8 @@ def generateMLF():
             phn.close()
             mlf.close()
 
+
+""" Generate the HMM definitions """
 def generateHMMDefs():
     phonemeList = str.format("{0}{1}{2}", OUTPUT_DIR, "phones0", MLF_EXT) #TODO: Set proper PhonemeList location
     hmmDefs = str.format("{0}{1}{2}", OUTPUT_DIR, "phones0", MLF_EXT) #TODO: Set proper HMMDef location
@@ -156,6 +167,8 @@ def generateHMMDefs():
     phn.close()
     hmm.close()
 
+
+""" Generate the macro files """
 def generateMacros():
     macros = str.format("{0}{1}{2}", OUTPUT_DIR, "phones0", MLF_EXT) #TODO: Set proper Macros location
     macroHeaders = str.format("{0}{1}{2}", OUTPUT_DIR, "phones0", MLF_EXT) #TODO: Set proper MacroHeaders location
@@ -179,3 +192,32 @@ def generateMacros():
     vFloorFile.close()
 
     macroFile.close()
+
+
+# Generate the wav -> MFC script
+print("Generating the wav -> MFC conversion script")
+generateConversionList()
+print("Completed")
+
+sleep(3)
+
+# Perform the wav -> MFC conversion
+convertFile = str.format("{0}{1}{2}", OUTPUT_DIR, "WAV_MFC_Conversion_List", SCRIPT_EXT)
+conversionCommand = str.format("HCopy -T 1 -C {0} -S {1}", MFC_CONFIG, convertFile)
+print("Performing wav -> MFC conversion")
+os.system(conversionCommand)
+print("Completed")
+
+sleep(3)
+
+# Generate the classifier lists
+print("Generating lists for each classifier")
+generateClassifierLists()
+print("Completed")
+
+sleep(3)
+
+
+
+
+
