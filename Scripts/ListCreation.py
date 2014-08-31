@@ -196,61 +196,72 @@ def generateMacros():
     macroFile.close()
 
 
-# Generate the wav -> MFC script
-print("Generating the wav -> MFC conversion script")
-generateConversionList()
-print("Completed")
+command = input("(I)nitiatise, (T)rain, (E)valuate or (Q)uit")
 
-sleep(3)
+while (command.upper() != "Q"):
+    command = command.upper()
+    if (command == "I"):
+        # Generate the wav -> MFC script
+        print("Generating the wav -> MFC conversion script")
+        generateConversionList()
+        print("Completed")
 
-# Perform the wav -> MFC conversion
-convertFile = str.format("{0}{1}{2}", OUTPUT_DIR, "WAV_MFC_Conversion_List", SCRIPT_EXT)
-conversionCommand = str.format("HCopy -T 1 -C {0} -S {1}", MFC_CONFIG, convertFile)
-print("Performing wav -> MFC conversion")
-os.system(conversionCommand)
-print("Completed")
+        sleep(3)
 
-sleep(3)
+        # Perform the wav -> MFC conversion
+        convertFile = str.format("{0}{1}{2}", OUTPUT_DIR, "WAV_MFC_Conversion_List", SCRIPT_EXT)
+        conversionCommand = str.format("HCopy -T 1 -C {0} -S {1}", MFC_CONFIG, convertFile)
+        print("Performing wav -> MFC conversion")
+        os.system(conversionCommand)
+        print("Completed")
 
-# Generate the classifier lists
-print("Generating lists for each classifier")
-generateClassifierLists()
-print("Completed")
+        sleep(3)
 
-sleep(3)
+        # Generate the classifier lists
+        print("Generating lists for each classifier")
+        generateClassifierLists()
+        print("Completed")
 
-# Generate first pass HMM's
-for ext in CLASSIFIER_EXTS:
-    script = str.format("{0}{1}_Training_List.scp", OUTPUT_DIR, ext.lstrip('.'))
-    outputFolder = str.format("{0}{1}\\hmm0", HMM_DIR, ext.lstrip('.'))
-    hmmCommand = str.format("HCompV -T 1 -C {0} -f 0.01 -m -S {1} -M {2} {3}",
-                            HCOMPV_CONFIG,
-                            script,
-                            outputFolder,
-                            PROTO_CONFIG)
-    print(str.format("Performing {0} HMM initialisation", ext.lstrip('.')))
-    os.system(hmmCommand)
-    print("Completed")
+        sleep(3)
 
-    sleep(3)
+        # Generate first pass HMM's
+        for ext in CLASSIFIER_EXTS:
+            script = str.format("{0}{1}_Training_List.scp", OUTPUT_DIR, ext.lstrip('.'))
+            outputFolder = str.format("{0}{1}\\hmm0", HMM_DIR, ext.lstrip('.'))
+            hmmCommand = str.format("HCompV -T 1 -C {0} -f 0.01 -m -S {1} -M {2} {3}",
+                                    HCOMPV_CONFIG,
+                                    script,
+                                    outputFolder,
+                                    PROTO_CONFIG)
+            print(str.format("Performing {0} HMM initialisation", ext.lstrip('.')))
+            os.system(hmmCommand)
+            print("Completed")
 
-# Generate MLF, hmmdef, and macro files
-print("Generating MLF")
-generateMLF()
-print("Completed")
-print("Generating HMM Definitions")
-generateHMMDefs()
-print("Completed")
-print("Generating Macros")
-generateMacros()
-print("Completed")
+            sleep(3)
 
-sleep(3)
+        # Generate MLF, hmmdef, and macro files
+        print("Generating MLF")
+        generateMLF()
+        print("Completed")
+        print("Generating HMM Definitions")
+        generateHMMDefs()
+        print("Completed")
+        print("Generating Macros")
+        generateMacros()
+        print("Completed")
 
-# Check if .phn have been converted to .lab files
-print("Checking if .phn -> .lab conversion has occurred")
-createLabFiles()
-print("Completed")
+        sleep(3)
 
-sleep(3)
+        # Check if .phn have been converted to .lab files
+        print("Checking if .phn -> .lab conversion has occurred")
+        createLabFiles()
+        print("Completed")
 
+        sleep(3)
+
+    elif (command == "T"):
+
+    elif (command == "E"):
+
+    else:
+        print("Invalid option.")
