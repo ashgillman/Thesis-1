@@ -7,16 +7,19 @@ from time import sleep
 """ Define System Directory Constants """
 if platform.system() == "Windows":
     FILE_START = "J:\\"
+    SEPARATOR = "\\"
 else:
-    FILE_START = "\\Volumes\\External\\"
+    FILE_START = "/Volumes/External/"
+    SEPARATOR = "/"
 
 # Directory Constants
-TRAINING_AUDIO_DIR = FILE_START + "ConvertData\\Thesis Data\\Desk\\Testing\\Development\\"
-OUTPUT_DIR = FILE_START + "ClassifierTraining\\Lists\\"
-CLASSIFIER_DIR = FILE_START + "ClassifierTraining\\Classifiers\\"
-DATA_DIR = FILE_START + "ConvertData\\"
-CONFIG_DIR = FILE_START + "ClassifierTraining\\Configs\\"
-HMM_DIR = FILE_START + "ClassifierTraining\\HMMs\\"
+TRAINING_DIR = str.format("{0}ClassifierTraining{1}", FILE_START, SEPARATOR)
+TRAINING_AUDIO_DIR = str.format("{0}ConvertData{1}ThesisData{1}Desk{1}Testing{1}Development{1}", FILE_START, SEPARATOR)
+SCRIPT_DIR = str.format("{0}Lists{1}", TRAINING_DIR, SEPARATOR)
+CLASSIFIER_DIR = str.format("{0}Classifiers{1}", TRAINING_DIR, SEPARATOR)
+DATA_DIR = str.format("{0}ConvertData{1}", FILE_START, SEPARATOR)
+CONFIG_DIR = str.format("{0}Configs{1}", TRAINING_DIR, SEPARATOR)
+HMM_DIR = str.format("{0}HMMs{1}", TRAINING_DIR, SEPARATOR)
 
 # Extension Constants
 MFC_EXT = ".mfc"
@@ -36,14 +39,32 @@ SILENCE_PHN = "sil"
 
 # Config File Locations
 # TODO: Actually write configs
-MFC_CONFIG = CONFIG_DIR + "MFC_Config.ini"
-HCOMPV_CONFIG = CONFIG_DIR + "HCompV_Config.ini"
-PROTO_CONFIG = CONFIG_DIR + "Proto_Config.ini"
+MFC_CONVERT_CONFIG = CONFIG_DIR + "MFC_Convert_Config.ini"
+HCOMPV_CONFIG = CONFIG_DIR + "||_HCompV_Config.ini"
+HCOMPV_MFC_CONFIG = CONFIG_DIR + "MFC_HCompV_Config.ini"
+PROTO_CONFIG = TRAINING_DIR + "Training" + SEPARATOR + "MFCProto"
 HEREST_CONFIG = CONFIG_DIR + "Reestimation_Config.ini"
 
+# Phoneme File location
+PHONE_LOC = TRAINING_DIR + "Training" + SEPARATOR + "Monophones0"
+
+# Sleep length
+SLEEP_S = 3
 
 def listAllFiles(dir, ext):
     return [name for name in [f for r,d,f in os.walk(dir)][0] if ext in name]
+
+def buildFileStructure():
+
+    for ext in CLASSIFIER_EXTS:
+        ext = ext.lstrip('.').upper()
+        dir = str.format("{0}{1}", HMM_DIR, ext)
+        if (not os.path.exists(dir)):
+            os.mkdir(dir)
+
+        dir = str.format("{0}{1}hmm0", dir, SEPARATOR)
+        if (not os.path.exists(dir)):
+            os.mkdir(dir)
 
 def createLabFiles():
     """
@@ -63,12 +84,12 @@ def createLabFiles():
 """ Generate WAV -> MFC list """
 def generateConversionList():
     # Clear WAV -> MFC conversion file, to allow appending
-    wavConvertFile = str.format("{0}{1}{2}", OUTPUT_DIR, "WAV_MFC_Conversion_List", SCRIPT_EXT)
+    wavConvertFile = str.format("{0}{1}{2}", SCRIPT_DIR, "WAV_MFC_Conversion_List", SCRIPT_EXT)
     open(wavConvertFile, 'w').close()
 
     for folder in os.listdir(TRAINING_AUDIO_DIR):
 
-        dir = str.format("{0}{1}\\", TRAINING_AUDIO_DIR, folder)
+        dir = str.format("{0}{1}{2}", TRAINING_AUDIO_DIR, folder, SEPARATOR)
         files = listAllFiles(dir, AUDIO_EXT)
 
         fid = open(wavConvertFile, 'a+')
@@ -91,8 +112,8 @@ def generateConversionList():
 """ Classifier Training Lists """
 def generateClassifierLists():
     for ext in CLASSIFIER_EXTS:
-
-        listFile = str.format("{0}{1}_Training_List.scp", OUTPUT_DIR, ext.lstrip('.'))
+        ext = ext.lstrip('.').upper()
+        listFile = str.format("{0}{1}_Training_List.scp", SCRIPT_DIR, ext)
 
         files = listAllFiles(CLASSIFIER_DIR, ext)
 
@@ -106,7 +127,7 @@ def generateClassifierLists():
 
 """ Master Label File Creation """
 def generateMLF():
-    MLFFile = str.format("{0}{1}{2}", OUTPUT_DIR, "phones0", MLF_EXT)
+    MLFFile = str.format("{0}{1}{2}", SCRIPT_DIR, "phones0", MLF_EXT)
 
     # Overwrite the MLF file
     fid = open(MLFFile, 'w')
@@ -115,7 +136,7 @@ def generateMLF():
 
     for folder in os.listdir(TRAINING_AUDIO_DIR):
 
-        dir = str.format("{0}{1}\\", TRAINING_AUDIO_DIR, folder)
+        dir = str.format("{0}{1}{2}", TRAINING_AUDIO_DIR, folder, SEPARATOR)
         files = listAllFiles(dir, PHONEME_EXT.upper())
 
         for file in files:
@@ -138,55 +159,69 @@ def generateMLF():
 
 
 """ Generate the HMM definitions """
-def generateHMMDefs():
-    phonemeList = str.format("{0}{1}{2}", OUTPUT_DIR, "phones0", MLF_EXT) #TODO: Set proper PhonemeList location
-    hmmDefs = str.format("{0}{1}{2}", OUTPUT_DIR, "phones0", MLF_EXT) #TODO: Set proper HMMDef location
-    proto = str.format("{0}{1}{2}", OUTPUT_DIR, "phones0", MLF_EXT) #TODO: Set proper proto location
+def generateHMMDefs(ext):
+    ext = ext.lstrip('.').upper()
+    trainingInformationDir = str.format("{0}{1}{2}", TRAINING_DIR, "Training", SEPARATOR)
 
-    phn = open(phonemeList, 'r')
-    hmm = open(hmmDefs, 'w')
+    hmmDefs = str.format("{0}{1}{2}{3}", HMM_DIR, "Base", SEPARATOR, "BaseHMM")
+    proto = str.format("{0}{1}{2}", trainingInformationDir, ext, "Proto") # TODO: Edit proto files of each ext
 
-    for line in phn:
-        hmm.write(str.format("~h {0}", line))
+    if (not os.path.isfile(hmmDefs)):
 
-        if line.lower() == SILENCE_PHN:
+        phn = open(PHONE_LOC, 'r')
+        hmm = open(hmmDefs, 'w')
+
+        for line in phn:
+            hmm.write(str.format("~h \"{0}\"\n", line.strip("\n")))
+
+            if line.lower() == SILENCE_PHN:
+                hmm.write("\n")
+
+            protoFile = open(proto, 'r')
+            lineCount = 0
+
+            for protoLine in protoFile:
+
+                if lineCount > 3:
+                    hmm.write(protoLine)
+
+                lineCount += 1
+
             hmm.write("\n")
 
-        protoFile = open(proto, 'r')
-        lineCount = 0
+            protoFile.close()
 
-        for protoLine in protoFile:
+        phn.close()
+        hmm.close()
 
-            if lineCount > 3:
-                hmm.write(protoLine)
+    newFile = str.format("{0}{1}{2}hmm0{2}HMMDef", HMM_DIR, ext, SEPARATOR)
+    open(newFile, 'w').close()
 
-            lineCount += 1
-
-        hmm.write("\n")
-
-        proto.close()
-
-    phn.close()
-    hmm.close()
+    shutil.copyfile(hmmDefs, newFile)
 
 
 """ Generate the macro files """
-def generateMacros():
-    macros = str.format("{0}{1}{2}", OUTPUT_DIR, "phones0", MLF_EXT) #TODO: Set proper Macros location
-    macroHeaders = str.format("{0}{1}{2}", OUTPUT_DIR, "phones0", MLF_EXT) #TODO: Set proper MacroHeaders location
-    vFloor = str.format("{0}{1}{2}", OUTPUT_DIR, "phones0", MLF_EXT) #TODO: Set proper vFloor location
+def generateMacros(ext):
+    ext = ext.lstrip('.').upper()
+    trainingInformationDir = str.format("{0}{1}{2}", TRAINING_DIR, "Training", SEPARATOR)
+
+    macros = str.format("{0}{1}{2}hmm0{2}{1}Macros", HMM_DIR, ext, SEPARATOR)
+    proto = str.format("{0}{1}{2}hmm0{2}{1}Proto", HMM_DIR, ext, SEPARATOR)
+    vFloor = str.format("{0}{1}{2}hmm0{2}vFloors", HMM_DIR, ext, SEPARATOR)
 
     macroFile = open(macros, 'w')
-    headerFile = open(macroHeaders, 'r')
+    headerFile = open(proto, 'r')
 
+    lineCount = 0
     for line in headerFile:
         macroFile.write(line)
-
-    macroFile.write("\n")
+        lineCount += 1
+        if lineCount >= 3:
+            break
 
     headerFile.close()
 
-    vFloorFile = open(vFloor, 'w')
+    vFloorFile = open(vFloor, 'r')
 
     for line in vFloorFile:
         macroFile.write(line)
@@ -196,72 +231,107 @@ def generateMacros():
     macroFile.close()
 
 
-command = input("(I)nitiatise, (T)rain, (E)valuate or (Q)uit")
 
-while (command.upper() != "Q"):
-    command = command.upper()
-    if (command == "I"):
+
+command = input("(I)nitiatise, (T)rain, (E)valuate or (Q)uit: ").upper()
+
+while (not command.startswith("Q")):
+    if (command.startswith("I")):
         # Generate the wav -> MFC script
         print("Generating the wav -> MFC conversion script")
         generateConversionList()
         print("Completed")
 
-        sleep(3)
+        sleep(SLEEP_S)
 
         # Perform the wav -> MFC conversion
-        convertFile = str.format("{0}{1}{2}", OUTPUT_DIR, "WAV_MFC_Conversion_List", SCRIPT_EXT)
-        conversionCommand = str.format("HCopy -T 1 -C {0} -S {1}", MFC_CONFIG, convertFile)
+        convertFile = str.format("{0}{1}{2}", SCRIPT_DIR, "WAV_MFC_Conversion_List", SCRIPT_EXT)
+        conversionCommand = str.format("HCopy -T 1 -C {0} -S {1}", MFC_CONVERT_CONFIG, convertFile)
         print("Performing wav -> MFC conversion")
-        os.system(conversionCommand)
+        #os.system(conversionCommand)
         print("Completed")
 
-        sleep(3)
+        sleep(SLEEP_S)
 
         # Generate the classifier lists
         print("Generating lists for each classifier")
         generateClassifierLists()
         print("Completed")
 
-        sleep(3)
+        sleep(SLEEP_S)
 
-        # Generate first pass HMM's
-        for ext in CLASSIFIER_EXTS:
-            script = str.format("{0}{1}_Training_List.scp", OUTPUT_DIR, ext.lstrip('.'))
-            outputFolder = str.format("{0}{1}\\hmm0", HMM_DIR, ext.lstrip('.'))
-            hmmCommand = str.format("HCompV -T 1 -C {0} -f 0.01 -m -S {1} -M {2} {3}",
-                                    HCOMPV_CONFIG,
-                                    script,
-                                    outputFolder,
-                                    PROTO_CONFIG)
-            print(str.format("Performing {0} HMM initialisation", ext.lstrip('.')))
-            os.system(hmmCommand)
-            print("Completed")
-
-            sleep(3)
-
-        # Generate MLF, hmmdef, and macro files
+        # Generate MLF
         print("Generating MLF")
         generateMLF()
         print("Completed")
-        print("Generating HMM Definitions")
-        generateHMMDefs()
-        print("Completed")
-        print("Generating Macros")
-        generateMacros()
-        print("Completed")
 
-        sleep(3)
+        sleep(SLEEP_S)
+
+        # Generate first pass HMM's
+        for ext in ['.mfc']:    #TODO: Update so it can do multiple classifier configs
+            ext = ext.lstrip('.').upper()
+
+            script = str.format("{0}{1}_Training_List.scp", SCRIPT_DIR, ext)
+            outputFolder = str.format("{0}{1}{2}hmm0", HMM_DIR, ext, SEPARATOR)
+            hmmCommand = str.format("HCompV -T 1 -C {0} -f 0.01 -m -S {1} -M {2} {3}",
+                                    HCOMPV_CONFIG.replace("||", ext),
+                                    script,
+                                    outputFolder,
+                                    PROTO_CONFIG)
+            print(str.format("Performing {0} HMM initialisation", ext))
+            os.system(hmmCommand)
+            print("Completed")
+
+            sleep(SLEEP_S)
+
+            # Generate hmmdef and macro files
+            print("Generating HMM Definitions")
+            generateHMMDefs(ext)
+            print("Completed")
+            print("Generating Macros")
+            generateMacros(ext)
+            print("Completed")
+
+            sleep(SLEEP_S)
 
         # Check if .phn have been converted to .lab files
         print("Checking if .phn -> .lab conversion has occurred")
         createLabFiles()
         print("Completed")
 
-        sleep(3)
+        sleep(SLEEP_S)
 
-    elif (command == "T"):
+    elif (command.startswith("T")):
+        for ext in [".mfc"]:                # TODO: Handle all classifiers
+            ext = ext.lstrip('.').upper()
+            for i in range(3):
 
-    elif (command == "E"):
+                print(str.format("Performing Re-Estimation {0} for the {1} classifier", i+1, ext))
 
+                macros = str.format("{0}{1}{2}hmm{3}{2}{1}Macros", HMM_DIR, ext, SEPARATOR, i)
+                hmmDefs = str.format("{0}{1}{2}hmm{3}{2}{1}HMMDef", HMM_DIR, ext, SEPARATOR, i)
+                output = str.format("{0}{1}{2}hmm{3}", HMM_DIR, ext, SEPARATOR, i+1)
+
+                command = str.format("HERest -C {0} -I {1} 250.0 150.0 1000.0 -S {2} -H {3} -H {4} -M {5} {6}",
+                                     HCOMPV_CONFIG.replace("||", ext),
+                                     SCRIPT_DIR + "phones0.mlf",
+                                     SCRIPT_DIR + ext + "_Training_List.scp",
+                                     macros,
+                                     hmmDefs,
+                                     output,
+                                     PHONE_LOC
+                                     )
+                os.system(command)
+
+                print("Completed")
+
+                sleep(SLEEP_S)
+
+
+    elif (command.startswith("E")):
+        print([x for x in range(1,2)])
     else:
         print("Invalid option.")
+
+
+    command = input("(I)nitiatise, (T)rain, (E)valuate or (Q)uit: ").upper()
