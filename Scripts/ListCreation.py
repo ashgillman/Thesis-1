@@ -52,7 +52,7 @@ PHONE_LOC = TRAINING_DIR + "Training" + SEPARATOR + "Monophones0"
 SLEEP_S = 3
 
 def listAllFiles(dir, ext):
-    return [name for name in [f for r,d,f in os.walk(dir)][0] if ext in name]
+    return [name for name in [f for r,d,f in os.walk(dir)][0] if name.lower().endswith(ext.lower())]
 
 def buildFileStructure():
 
@@ -75,7 +75,7 @@ def createLabFiles():
         for file in files:
             [name, ext] = file.split(".")
             phnFile = os.path.join(root, file)
-            labFile = phnFile[0:-4] + LAB_EXT
+            labFile = str.format("{0}{1}{2}", CLASSIFIER_DIR, file.strip(PHONEME_EXT.upper()), LAB_EXT)
 
             if phnFile.lower().endswith(PHONEME_EXT) and not os.path.isfile(labFile):
                 shutil.copyfile(phnFile, labFile)
@@ -141,7 +141,7 @@ def generateMLF():
 
         for file in files:
 
-            label = str.format("\"*/{0}\"", file)
+            label = str.format("\"*\{0}{1}\"", file.rstrip(PHONEME_EXT.upper()), LAB_EXT)
 
             phn = open(dir + file, 'r+')
 
@@ -158,52 +158,46 @@ def generateMLF():
             mlf.close()
 
 
+
+
 """ Generate the HMM definitions """
 def generateHMMDefs(ext):
     ext = ext.lstrip('.').upper()
     trainingInformationDir = str.format("{0}{1}{2}", TRAINING_DIR, "Training", SEPARATOR)
 
-    hmmDefs = str.format("{0}{1}{2}{3}", HMM_DIR, "Base", SEPARATOR, "BaseHMM")
-    proto = str.format("{0}{1}{2}", trainingInformationDir, ext, "Proto") # TODO: Edit proto files of each ext
+    hmmDefs = str.format("{0}{1}{2}hmm0{2}HMMDef", HMM_DIR, ext, SEPARATOR)
+    proto = str.format("{0}{1}{2}hmm0{2}{1}Proto", HMM_DIR, ext, SEPARATOR) # TODO: Edit proto files of each ext
 
-    if (not os.path.isfile(hmmDefs)):
+    phn = open(PHONE_LOC, 'r')
+    hmm = open(hmmDefs, 'w')
 
-        phn = open(PHONE_LOC, 'r')
-        hmm = open(hmmDefs, 'w')
+    for line in phn:
+        hmm.write(str.format("~h \"{0}\"\n", line.strip("\n")))
 
-        for line in phn:
-            hmm.write(str.format("~h \"{0}\"\n", line.strip("\n")))
-
-            if line.lower() == SILENCE_PHN:
-                hmm.write("\n")
-
-            protoFile = open(proto, 'r')
-            lineCount = 0
-
-            for protoLine in protoFile:
-
-                if lineCount > 3:
-                    hmm.write(protoLine)
-
-                lineCount += 1
-
+        if line.lower() == SILENCE_PHN:
             hmm.write("\n")
 
-            protoFile.close()
+        protoFile = open(proto, 'r')
+        lineCount = 0
 
-        phn.close()
-        hmm.close()
+        for protoLine in protoFile:
 
-    newFile = str.format("{0}{1}{2}hmm0{2}HMMDef", HMM_DIR, ext, SEPARATOR)
-    open(newFile, 'w').close()
+            if lineCount > 3:
+                hmm.write(protoLine)
 
-    shutil.copyfile(hmmDefs, newFile)
+            lineCount += 1
+
+        hmm.write("\n")
+
+        protoFile.close()
+
+    phn.close()
+    hmm.close()
 
 
 """ Generate the macro files """
 def generateMacros(ext):
     ext = ext.lstrip('.').upper()
-    trainingInformationDir = str.format("{0}{1}{2}", TRAINING_DIR, "Training", SEPARATOR)
 
     macros = str.format("{0}{1}{2}hmm0{2}{1}Macros", HMM_DIR, ext, SEPARATOR)
     proto = str.format("{0}{1}{2}hmm0{2}{1}Proto", HMM_DIR, ext, SEPARATOR)
@@ -309,10 +303,10 @@ while (not command.startswith("Q")):
                 print(str.format("Performing Re-Estimation {0} for the {1} classifier", i+1, ext))
 
                 macros = str.format("{0}{1}{2}hmm{3}{2}{1}Macros", HMM_DIR, ext, SEPARATOR, i)
-                hmmDefs = str.format("{0}{1}{2}hmm{3}{2}{1}HMMDef", HMM_DIR, ext, SEPARATOR, i)
+                hmmDefs = str.format("{0}{1}{2}hmm{3}{2}HMMDef", HMM_DIR, ext, SEPARATOR, i)
                 output = str.format("{0}{1}{2}hmm{3}", HMM_DIR, ext, SEPARATOR, i+1)
 
-                command = str.format("HERest -C {0} -I {1} 250.0 150.0 1000.0 -S {2} -H {3} -H {4} -M {5} {6}",
+                command = str.format("HERest -C {0} -I {1} -t 250.0 150.0 1000.0 -S {2} -H {3} -H {4} -M {5} {6}",
                                      HCOMPV_CONFIG.replace("||", ext),
                                      SCRIPT_DIR + "phones0.mlf",
                                      SCRIPT_DIR + ext + "_Training_List.scp",
@@ -321,6 +315,9 @@ while (not command.startswith("Q")):
                                      output,
                                      PHONE_LOC
                                      )
+
+                print(command)
+                pass
                 os.system(command)
 
                 print("Completed")
@@ -329,7 +326,7 @@ while (not command.startswith("Q")):
 
 
     elif (command.startswith("E")):
-        print([x for x in range(1,2)])
+        print(HCOMPV_CONFIG.replace("||", "MFC"))
     else:
         print("Invalid option.")
 
