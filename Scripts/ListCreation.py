@@ -16,6 +16,7 @@ OUTPUT_DIR = FILE_START + "ClassifierTraining\\Lists\\"
 CLASSIFIER_DIR = FILE_START + "ClassifierTraining\\Classifiers\\"
 DATA_DIR = FILE_START + "ConvertData\\"
 CONFIG_DIR = FILE_START + "ClassifierTraining\\Configs\\"
+HMM_DIR = FILE_START + "ClassifierTraining\\HMMs\\"
 
 # Extension Constants
 MFC_EXT = ".mfc"
@@ -37,6 +38,7 @@ SILENCE_PHN = "sil"
 # TODO: Actually write configs
 MFC_CONFIG = CONFIG_DIR + "MFC_Config.ini"
 HCOMPV_CONFIG = CONFIG_DIR + "HCompV_Config.ini"
+PROTO_CONFIG = CONFIG_DIR + "Proto_Config.ini"
 HEREST_CONFIG = CONFIG_DIR + "Reestimation_Config.ini"
 
 
@@ -217,7 +219,38 @@ print("Completed")
 
 sleep(3)
 
+# Generate first pass HMM's
+for ext in CLASSIFIER_EXTS:
+    script = str.format("{0}{1}_Training_List.scp", OUTPUT_DIR, ext.lstrip('.'))
+    outputFolder = str.format("{0}{1}\\hmm0", HMM_DIR, ext.lstrip('.'))
+    hmmCommand = str.format("HCompV -T 1 -C {0} -f 0.01 -m -S {1} -M {2} {3}",
+                            HCOMPV_CONFIG,
+                            script,
+                            outputFolder,
+                            PROTO_CONFIG)
+    print(str.format("Performing {0} HMM initialisation", ext.lstrip('.')))
+    os.system(hmmCommand)
+    print("Completed")
 
+    sleep(3)
 
+# Generate MLF, hmmdef, and macro files
+print("Generating MLF")
+generateMLF()
+print("Completed")
+print("Generating HMM Definitions")
+generateHMMDefs()
+print("Completed")
+print("Generating Macros")
+generateMacros()
+print("Completed")
 
+sleep(3)
+
+# Check if .phn have been converted to .lab files
+print("Checking if .phn -> .lab conversion has occurred")
+createLabFiles()
+print("Completed")
+
+sleep(3)
 
