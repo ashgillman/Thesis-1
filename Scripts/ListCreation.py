@@ -51,6 +51,9 @@ PHONE_LOC = TRAINING_DIR + "Training" + SEPARATOR + "Monophones0"
 # Sleep length
 SLEEP_S = 3
 
+# Number of training iterations
+TRAINING_COUNT = 9
+
 def listAllFiles(dir, ext):
     return [name for name in [f for r,d,f in os.walk(dir)][0] if name.lower().endswith(ext.lower())]
 
@@ -62,20 +65,21 @@ def buildFileStructure():
         if (not os.path.exists(dir)):
             os.mkdir(dir)
 
-        dir = str.format("{0}{1}hmm0", dir, SEPARATOR)
-        if (not os.path.exists(dir)):
-            os.mkdir(dir)
+        for i in range(TRAINING_COUNT+1):
+            subdir = str.format("{0}{1}hmm{2}", dir, SEPARATOR, i)
+            if (not os.path.exists(subdir)):
+                os.mkdir(subdir)
 
 def createLabFiles():
     """
     Recursively traverses the entire audio data directory looking for .phn files and copies them into a .lab file if it
     doesn't already exist.
     """
-    for root, subdirs, files in os.walk(DATA_DIR):
+    for root, subdirs, files in os.walk(TRAINING_AUDIO_DIR):
         for file in files:
             [name, ext] = file.split(".")
             phnFile = os.path.join(root, file)
-            labFile = str.format("{0}{1}{2}", CLASSIFIER_DIR, file.strip(PHONEME_EXT.upper()), LAB_EXT)
+            labFile = str.format("{0}{1}{2}", CLASSIFIER_DIR, name, LAB_EXT)
 
             if phnFile.lower().endswith(PHONEME_EXT) and not os.path.isfile(labFile):
                 shutil.copyfile(phnFile, labFile)
@@ -326,7 +330,7 @@ while (not command.startswith("Q")):
 
 
     elif (command.startswith("E")):
-        print(HCOMPV_CONFIG.replace("||", "MFC"))
+        buildFileStructure()
     else:
         print("Invalid option.")
 
