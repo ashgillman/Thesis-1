@@ -45,8 +45,12 @@ HCOMPV_MFC_CONFIG = CONFIG_DIR + "MFC_HCompV_Config.ini"
 PROTO_CONFIG = TRAINING_DIR + "Training" + SEPARATOR + "MFCProto"
 HEREST_CONFIG = CONFIG_DIR + "Reestimation_Config.ini"
 
+SIL_CONFIG = TRAINING_DIR + "Training" + SEPARATOR + "sil.hed"
+
 # Phoneme File location
-PHONE_LOC = TRAINING_DIR + "Training" + SEPARATOR + "Monophones0"
+PHONE_LOC = TRAINING_DIR + "Training" + SEPARATOR + "Monophones"
+PHONE_NO_SP = PHONE_LOC + '0'
+PHONE_WITH_SP = PHONE_LOC + '1'
 
 # Sleep length
 SLEEP_S = 3
@@ -172,7 +176,7 @@ def generateHMMDefs(ext):
     hmmDefs = str.format("{0}{1}{2}hmm0{2}HMMDef", HMM_DIR, ext, SEPARATOR)
     proto = str.format("{0}{1}{2}hmm0{2}{1}Proto", HMM_DIR, ext, SEPARATOR) # TODO: Edit proto files of each ext
 
-    phn = open(PHONE_LOC, 'r')
+    phn = open(PHONE_NO_SP, 'r')
     hmm = open(hmmDefs, 'w')
 
     for line in phn:
@@ -227,6 +231,60 @@ def generateMacros(ext):
     vFloorFile.close()
 
     macroFile.close()
+
+
+def generateSPModel(ext, HMMIteration):
+
+    ext = ext.lstrip('.').upper()
+
+    currentHMM = str.format("{0}{1}{2}hmm{3}", HMM_DIR, ext, SEPARATOR, HMMIteration)
+
+    for file in os.listdir(currentHMM):
+        nextHMM = str.format("{0}{1}{2}hmm{3}{2}{4}", HMM_DIR, ext, SEPARATOR, HMMIteration+1, file)
+        shutil.copy(currentHMM + SEPARATOR + file, nextHMM)
+
+    hmmDef = str.format("{0}{1}{2}hmm{3}{2}HMMDef", HMM_DIR, ext, SEPARATOR, HMMIteration+1)
+
+    fid = open(hmmDef, 'r')
+
+    spModel = "~h \"sp\"\n"
+    silFound = False
+    secondState = False
+
+    for line in fid:
+
+        if line.startswith("~h"):
+            if "sil" in line:
+                silFound = True
+            else:
+                silFound = False
+
+        else:
+            if silFound:
+                if "<NUMSTATES>" in line:
+                    spModel += "<BEGINHMM>\n"
+                    spModel += "<NUMSTATES> 3\n"
+
+                elif "<STATE>" in line:
+                    if '3' in line:
+                        line = "<STATE> 2\n"
+                        secondState = True
+                    else:
+                        secondState = False
+                elif "<TRANSP>" in line:
+                    spModel += "<TRANSP> 3\n0.0 1.0 0.0\n0.0 0.9 0.1\n0.0 0.0 0.0\n"
+
+                if secondState:
+                    spModel += line
+
+    spModel += "<ENDHMM>"
+
+    fid.close()
+
+    return spModel
+
+
+def createMyOwnFuckingDictionary():
 
 
 
@@ -302,35 +360,113 @@ while (not command.startswith("Q")):
     elif (command.startswith("T")):
         for ext in [".mfc"]:                # TODO: Handle all classifiers
             ext = ext.lstrip('.').upper()
+
+            currentIteration = 0
+
             for i in range(3):
+                print(str.format("Performing Re-Estimation {0} for the {1} classifier", currentIteration+1, ext))
 
-                print(str.format("Performing Re-Estimation {0} for the {1} classifier", i+1, ext))
-
-                macros = str.format("{0}{1}{2}hmm{3}{2}{1}Macros", HMM_DIR, ext, SEPARATOR, i)
-                hmmDefs = str.format("{0}{1}{2}hmm{3}{2}HMMDef", HMM_DIR, ext, SEPARATOR, i)
-                output = str.format("{0}{1}{2}hmm{3}", HMM_DIR, ext, SEPARATOR, i+1)
+                macros = str.format("{0}{1}{2}hmm{3}{2}{1}Macros", HMM_DIR, ext, SEPARATOR, currentIteration)
+                hmmDef = str.format("{0}{1}{2}hmm{3}{2}HMMDef", HMM_DIR, ext, SEPARATOR, currentIteration)
+                output = str.format("{0}{1}{2}hmm{3}", HMM_DIR, ext, SEPARATOR, currentIteration+1)
 
                 command = str.format("HERest -C {0} -I {1} -t 250.0 150.0 1000.0 -S {2} -H {3} -H {4} -M {5} {6}",
                                      HCOMPV_CONFIG.replace("||", ext),
                                      SCRIPT_DIR + "phones0.mlf",
                                      SCRIPT_DIR + ext + "_Training_List.scp",
                                      macros,
-                                     hmmDefs,
+                                     hmmDef,
                                      output,
-                                     PHONE_LOC
+                                     PHONE_NO_SP
                                      )
 
-                print(command)
-                pass
                 os.system(command)
-
                 print("Completed")
+
+                currentIteration += 1
 
                 sleep(SLEEP_S)
 
+            print("Generating the sp model and tying it to the center model of sil.")
+
+            spModel = generateSPModel(ext, currentIteration)
+            currentIteration += 1
+
+            hmmDef = str.format("{0}{1}{2}hmm{3}{2}HMMDef", HMM_DIR, ext, SEPARATOR, currentIteration)
+
+            fid = open(hmmDef, 'a+')
+            fid.write(spModel)
+            fid.close()
+
+            print("Model generated\nTying model to sil.")
+
+            macros = str.format("{0}{1}{2}hmm{3}{2}{1}Macros", HMM_DIR, ext, SEPARATOR, currentIteration)
+            output = str.format("{0}{1}{2}hmm{3}", HMM_DIR, ext, SEPARATOR, currentIteration+1)
+
+            command = str.format("HHEd -H {0} -H {1} -M {2} {3} {4}",
+                                 hmmDef,
+                                 macros,
+                                 output,
+                                 SIL_CONFIG,
+                                 PHONE_WITH_SP)
+
+            os.system(command)
+
+            currentIteration += 1
+
+            print("Completed")
+
+            print(currentIteration)
+
+            sleep(SLEEP_S)
+
+            for i in range(3):
+                print(str.format("Performing Re-Estimation {0} for the {1} classifier", currentIteration+1, ext))
+
+                macros = str.format("{0}{1}{2}hmm{3}{2}{1}Macros", HMM_DIR, ext, SEPARATOR, currentIteration)
+                hmmDef = str.format("{0}{1}{2}hmm{3}{2}HMMDef", HMM_DIR, ext, SEPARATOR, currentIteration)
+                output = str.format("{0}{1}{2}hmm{3}", HMM_DIR, ext, SEPARATOR, currentIteration+1)
+
+                command = str.format("HERest -C {0} -I {1} -t 250.0 150.0 3000.0 -S {2} -H {3} -H {4} -M {5} {6}",
+                                     HCOMPV_CONFIG.replace("||", ext),
+                                     SCRIPT_DIR + "phones0.mlf",
+                                     SCRIPT_DIR + ext + "_Training_List.scp",
+                                     macros,
+                                     hmmDef,
+                                     output,
+                                     PHONE_WITH_SP
+                                     )
+
+                os.system(command)
+                print("Completed")
+
+                currentIteration += 1
+
+                sleep(SLEEP_S)
+
+            print("Realigning the training data")
+
+            macros = str.format("{0}{1}{2}hmm{3}{2}{1}Macros", HMM_DIR, ext, SEPARATOR, currentIteration)
+            hmmDef = str.format("{0}{1}{2}hmm{3}{2}HMMDef", HMM_DIR, ext, SEPARATOR, currentIteration)
+            output = str.format("{0}{1}{2}hmm{3}", HMM_DIR, ext, SEPARATOR, currentIteration+1)
+
+            command = str.format("HVite -l '*' -o SWT -b SIL -C {0} -a -H {1} -H {2} -i {3} -m -t 250.0 -y lab -I {4} -S {5} {6} {7}",
+                                 HCOMPV_CONFIG.replace("||", ext),
+                                 macros,
+                                 hmmDef,
+                                 SCRIPT_DIR + ext + "NewPhones0.mlf",
+                                 SCRIPT_DIR + "phones0.mlf",
+                                 SCRIPT_DIR + ext + "_Training_List.scp",
+                                 dict, # TODO: Figure out dict file
+                                 PHONE_WITH_SP
+                                 )
+
+
+
+
 
     elif (command.startswith("E")):
-        buildFileStructure()
+        generateSPModel(".mfc", 3)
     else:
         print("Invalid option.")
 
