@@ -6,7 +6,7 @@ from time import sleep
 
 """ Define System Directory Constants """
 if platform.system() == "Windows":
-    FILE_START = "J:\\"
+    FILE_START = "F:\\Thesis\\External\\"
     SEPARATOR = "\\"
 else:
     FILE_START = "/Volumes/External/"
@@ -26,6 +26,7 @@ MFC_EXT = ".mfc"
 AUDIO_EXT = ".wav"
 PHONEME_EXT = ".phn"
 LAB_EXT = ".lab"
+WRD_EXT = ".wrd"
 CLASSIFIER_EXTS = [".stft", ".lpc", ".mfc", ".nnmf"]
 
 # Script File Extension
@@ -57,6 +58,9 @@ SLEEP_S = 3
 
 # Number of training iterations
 TRAINING_COUNT = 9
+
+# Dictionary Location
+DICT_LOC = TRAINING_DIR + "Training" + SEPARATOR + "phonedict"
 
 def listAllFiles(dir, ext):
     return [name for name in [f for r,d,f in os.walk(dir)][0] if name.lower().endswith(ext.lower())]
@@ -234,7 +238,6 @@ def generateMacros(ext):
 
 
 def generateSPModel(ext, HMMIteration):
-
     ext = ext.lstrip('.').upper()
 
     currentHMM = str.format("{0}{1}{2}hmm{3}", HMM_DIR, ext, SEPARATOR, HMMIteration)
@@ -286,7 +289,123 @@ def generateSPModel(ext, HMMIteration):
 
 def createMyOwnFuckingDictionary():
 
+    for root, subdirs, files in os.walk(TRAINING_AUDIO_DIR):
 
+        phones = []
+
+        if os.path.isfile(DICT_LOC):
+            open(DICT_LOC, 'w').close()
+
+        for file in files:
+            [name, ext] = file.split(".")
+
+            print(name + "\t" + ext)
+
+            if ext.lower() in PHONEME_EXT.lower():
+                phnFile = os.path.join(root, file)
+                wrdFile = os.path.join(root, name + WRD_EXT.upper())
+
+                if os.path.isfile(phnFile) and os.path.isfile(wrdFile):
+                    phones = transcribeFiles(wrdFile, phnFile, phones)
+
+def transcribeFiles(wrdFile, phnFile, existingDict=[]):
+    phn = open(phnFile, 'r')
+    wrd = open(wrdFile, 'r')
+
+    dict = open(DICT_LOC, 'a+')
+
+    for line in wrd:
+        [start, end, word] = line.strip("\n").split("\t")
+
+        start = int(start)
+        end = int(end)
+        word = word.strip('.')
+
+        if word in existingDict:
+            [_, phnEnd, _] = phn.readline().strip("\n").split("\t")
+            while (int(phnEnd) < end):
+                [_, phnEnd, _] = phn.readline().strip("\n").split("\t")
+            continue
+
+        dict.write(word.ljust(20))
+        existingDict.append(word)
+
+        [phnStart, phnEnd, phone] = phn.readline().strip("\n").split("\t")
+
+        phnStart = int(phnStart)
+        phnEnd = int(phnEnd)
+
+        while(phnStart < start):
+            phnLine = phn.readline().strip("\n")
+
+            [phnStart, phnEnd, phone] = phnLine.split("\t")
+            phnStart = int(phnStart)
+            phnEnd = int(phnEnd)
+
+        while(phnEnd < end):
+            dict.write(phone + " ")
+            phnLine = phn.readline().strip("\n")
+            [_, phnEnd, phone] = phnLine.split("\t")
+            phnEnd = int(phnEnd)
+
+        dict.write(phone + "\n")
+
+    phn.close()
+    wrd.close()
+    dict.close()
+
+    return existingDict
+
+
+
+def performReestimation(ext, currentIteration, includeSPModel=False, includeNewMLF=False):
+    ext = ext.lstrip('.').upper()
+
+    if includeSPModel:
+        phoneFile = PHONE_WITH_SP
+    else:
+        phoneFile = PHONE_NO_SP
+
+    if includeNewMLF:
+        mlf = SCRIPT_DIR + ext + "NewPhones0.mlf"
+    else:
+        mlf = SCRIPT_DIR + "phones0.mlf"
+
+    macros = str.format("{0}{1}{2}hmm{3}{2}{1}Macros", HMM_DIR, ext, SEPARATOR, currentIteration)
+    hmmDef = str.format("{0}{1}{2}hmm{3}{2}HMMDef", HMM_DIR, ext, SEPARATOR, currentIteration)
+    output = str.format("{0}{1}{2}hmm{3}", HMM_DIR, ext, SEPARATOR, currentIteration+1)
+
+    command = str.format("HERest -C {0} -I {1} -t 250.0 150.0 1000.0 -S {2} -H {3} -H {4} -M {5} {6}",
+                         HCOMPV_CONFIG.replace("||", ext),
+                         mlf,
+                         SCRIPT_DIR + ext + "_Training_List.scp",
+                         macros,
+                         hmmDef,
+                         output,
+                         phoneFile
+                         )
+
+    os.system(command)
+
+
+def performRealignment(ext, currentIteration):
+    ext = ext.lstrip('.').upper()
+
+    macros = str.format("{0}{1}{2}hmm{3}{2}{1}Macros", HMM_DIR, ext, SEPARATOR, currentIteration)
+    hmmDef = str.format("{0}{1}{2}hmm{3}{2}HMMDef", HMM_DIR, ext, SEPARATOR, currentIteration)
+
+    command = str.format("HVite -l '*' -o SWT -b SIL -C {0} -a -H {1} -H {2} -i {3} -m -t 250.0 -y lab -I {4} -S {5} {6} {7}",
+                         HCOMPV_CONFIG.replace("||", ext),
+                         macros,
+                         hmmDef,
+                         SCRIPT_DIR + ext + "NewPhones0.mlf",
+                         SCRIPT_DIR + "phones0.mlf",
+                         SCRIPT_DIR + ext + "_Training_List.scp",
+                         DICT_LOC, # TODO: Figure out dict file
+                         PHONE_WITH_SP
+                         )
+
+    os.system(command)
 
 
 command = input("(I)nitiatise, (T)rain, (E)valuate or (Q)uit: ").upper()
@@ -357,33 +476,27 @@ while (not command.startswith("Q")):
 
         sleep(SLEEP_S)
 
+        print("Creating phoneme dictionary (if one doesn't already exist)")
+        if not os.path.isfile(DICT_LOC):
+            createMyOwnFuckingDictionary()
+
+        print("Completed")
+
     elif (command.startswith("T")):
         for ext in [".mfc"]:                # TODO: Handle all classifiers
             ext = ext.lstrip('.').upper()
 
             currentIteration = 0
 
+            # Re-estimation 1-3
             for i in range(3):
                 print(str.format("Performing Re-Estimation {0} for the {1} classifier", currentIteration+1, ext))
 
-                macros = str.format("{0}{1}{2}hmm{3}{2}{1}Macros", HMM_DIR, ext, SEPARATOR, currentIteration)
-                hmmDef = str.format("{0}{1}{2}hmm{3}{2}HMMDef", HMM_DIR, ext, SEPARATOR, currentIteration)
-                output = str.format("{0}{1}{2}hmm{3}", HMM_DIR, ext, SEPARATOR, currentIteration+1)
-
-                command = str.format("HERest -C {0} -I {1} -t 250.0 150.0 1000.0 -S {2} -H {3} -H {4} -M {5} {6}",
-                                     HCOMPV_CONFIG.replace("||", ext),
-                                     SCRIPT_DIR + "phones0.mlf",
-                                     SCRIPT_DIR + ext + "_Training_List.scp",
-                                     macros,
-                                     hmmDef,
-                                     output,
-                                     PHONE_NO_SP
-                                     )
-
-                os.system(command)
-                print("Completed")
+                performReestimation(ext, currentIteration)
 
                 currentIteration += 1
+
+                print("Completed")
 
                 sleep(SLEEP_S)
 
@@ -416,57 +529,42 @@ while (not command.startswith("Q")):
 
             print("Completed")
 
-            print(currentIteration)
-
             sleep(SLEEP_S)
 
+            # Re-estimation 4-6
             for i in range(3):
                 print(str.format("Performing Re-Estimation {0} for the {1} classifier", currentIteration+1, ext))
 
-                macros = str.format("{0}{1}{2}hmm{3}{2}{1}Macros", HMM_DIR, ext, SEPARATOR, currentIteration)
-                hmmDef = str.format("{0}{1}{2}hmm{3}{2}HMMDef", HMM_DIR, ext, SEPARATOR, currentIteration)
-                output = str.format("{0}{1}{2}hmm{3}", HMM_DIR, ext, SEPARATOR, currentIteration+1)
-
-                command = str.format("HERest -C {0} -I {1} -t 250.0 150.0 3000.0 -S {2} -H {3} -H {4} -M {5} {6}",
-                                     HCOMPV_CONFIG.replace("||", ext),
-                                     SCRIPT_DIR + "phones0.mlf",
-                                     SCRIPT_DIR + ext + "_Training_List.scp",
-                                     macros,
-                                     hmmDef,
-                                     output,
-                                     PHONE_WITH_SP
-                                     )
-
-                os.system(command)
-                print("Completed")
+                performReestimation(ext, currentIteration, True)
 
                 currentIteration += 1
 
+                print("Completed")
+
                 sleep(SLEEP_S)
 
+
+            # Realign phonetic data with dictionary
             print("Realigning the training data")
+            performRealignment(ext, currentIteration)
+            print("Completed")
 
-            macros = str.format("{0}{1}{2}hmm{3}{2}{1}Macros", HMM_DIR, ext, SEPARATOR, currentIteration)
-            hmmDef = str.format("{0}{1}{2}hmm{3}{2}HMMDef", HMM_DIR, ext, SEPARATOR, currentIteration)
-            output = str.format("{0}{1}{2}hmm{3}", HMM_DIR, ext, SEPARATOR, currentIteration+1)
+            sleep(SLEEP_S)
 
-            command = str.format("HVite -l '*' -o SWT -b SIL -C {0} -a -H {1} -H {2} -i {3} -m -t 250.0 -y lab -I {4} -S {5} {6} {7}",
-                                 HCOMPV_CONFIG.replace("||", ext),
-                                 macros,
-                                 hmmDef,
-                                 SCRIPT_DIR + ext + "NewPhones0.mlf",
-                                 SCRIPT_DIR + "phones0.mlf",
-                                 SCRIPT_DIR + ext + "_Training_List.scp",
-                                 dict, # TODO: Figure out dict file
-                                 PHONE_WITH_SP
-                                 )
+            # Re-estimation 7-9
+            for i in range(3):
+                print(str.format("Performing Re-Estimation {0} for the {1} classifier", currentIteration+1, ext))
 
+                performReestimation(ext, currentIteration, True, True)
 
+                currentIteration += 1
 
+                print("Completed")
 
+                sleep(SLEEP_S)
 
     elif (command.startswith("E")):
-        generateSPModel(".mfc", 3)
+
     else:
         print("Invalid option.")
 
