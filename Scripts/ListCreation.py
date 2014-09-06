@@ -14,7 +14,7 @@ else:
 
 # Directory Constants
 TRAINING_DIR = str.format("{0}ClassifierTraining{1}", FILE_START, SEPARATOR)
-TRAINING_AUDIO_DIR = str.format("{0}ConvertData{1}ThesisData{1}Desk{1}Testing{1}Development{1}", FILE_START, SEPARATOR)
+TRAINING_AUDIO_DIR = str.format("{0}ConvertData{1}ThesisData{1}Desk{1}Testing{1}", FILE_START, SEPARATOR)
 EVAL_AUDIO_DIR = str.format("{0}ConvertData{1}ThesisData{1}Desk{1}Testing{1}Evaluation{1}", FILE_START, SEPARATOR)
 SCRIPT_DIR = str.format("{0}Lists{1}", TRAINING_DIR, SEPARATOR)
 CLASSIFIER_DIR = str.format("{0}Classifiers{1}", TRAINING_DIR, SEPARATOR)
@@ -66,7 +66,7 @@ SLEEP_S = 3
 TRAINING_COUNT = 15
 
 # Dictionary Location
-PHON_DICT_LOC = TRAINING_DIR + "Training" + SEPARATOR + "phonedict"
+PHONE_DICT_LOC = TRAINING_DIR + "Training" + SEPARATOR + "CMUDict"
 ONLINE_DICT_LOC = TRAINING_DIR + "Training" + SEPARATOR + "OnlineDict"
 MY_DICT_LOC = TRAINING_DIR + "Training" + SEPARATOR + "MyDict"
 
@@ -77,6 +77,9 @@ WORDNET = TRAINING_DIR + "Training" + SEPARATOR + "WordNet"
 # MLF locations
 MLF_TRAINING = CONFIG_DIR + "TrainingPhones.mlf"
 MLF_EVAL = CONFIG_DIR + "Eval||Phones.mlf"
+
+# Missing Words
+M = ["throughout", "matter"]
 
 def listAllFiles(dir, ext):
     return [name for name in [f for r,d,f in os.walk(dir)][0] if name.lower().endswith(ext.lower())]
@@ -94,17 +97,18 @@ def buildFileStructure():
                 os.mkdir(subdir)
 
 def buildWordList():
+    if os.path.isfile(WORD_LOC):
+        open(WORD_LOC, 'w').close()
+
     for root, subdirs, files in os.walk(TRAINING_AUDIO_DIR):
 
-        words = []
-
-        if os.path.isfile(WORD_LOC):
-            open(WORD_LOC, 'w').close()
+        wrdList = open(WORD_LOC, 'a+')
 
         for file in files:
             [_, ext] = file.split(".")
 
             if ext.lower() in WRD_EXT.lower():
+
                 wrdFile = os.path.join(root, file)
 
                 if os.path.isfile(wrdFile):
@@ -115,21 +119,10 @@ def buildWordList():
                         [_, _, word] = line.strip("\n").split("\t")
 
                         word = word.strip('.').upper()
-
-                        if word in words:
-                            continue
-
-
-                        words.append(word)
+                        wrdList.write(word + "\n")
+                        wrdList.flush()
 
                     wrd.close()
-
-
-        wrdList = open(WORD_LOC, 'a+')
-        words.sort()
-
-        for word in words:
-            wrdList.write(word + "\n")
 
         wrdList.close()
 
@@ -347,17 +340,17 @@ def generateSPModel(ext, HMMIteration):
 
 
 def buildDictionary():
-    command = str.format("HDMan -T 1 -m -w {0} -n {1} -g {2} -i -l {3} {4} {5} {6}",
+    command = str.format("HDMan -T 1 -m -w {0} -n {1} -g {2} -i -l {3} {4} {6} {5}",
                          WORD_LOC,
                          PHONE_NO_SP,
                          TRAINING_DIR + "Training" + SEPARATOR + "global.ded",
                          TRAINING_DIR + "Training" + SEPARATOR + "logFile",
                          MY_DICT_LOC,
-                         PHON_DICT_LOC,
+                         PHONE_DICT_LOC,
                          ONLINE_DICT_LOC
                          )
+
     print(command)
-    input()
     os.system(command)
 
 
@@ -397,12 +390,12 @@ def performRealignment(ext, currentIteration):
     macros = str.format("{0}{1}{2}hmm{3}{2}{1}Macros", HMM_DIR, ext, SEPARATOR, currentIteration)
     hmmDef = str.format("{0}{1}{2}hmm{3}{2}HMMDef", HMM_DIR, ext, SEPARATOR, currentIteration)
 
-    command = str.format("HVite -l '*' -o SWT -b SIL -C {0} -a -H {1} -H {2} -i {3} -m -t 250.0 -y lab -I {4} -S {5} {6} {7} > {8}",
+    command = str.format("HVite -T 1 -l '*' -o SWT -b SENT-END -C {0} -a -H {1} -H {2} -i {3} -m -t 250.0 150.0 1000.0 -y lab -a -I {4} -S {5} {6} {7} > {8}",
                          HCOMPV_CONFIG.replace("||", ext),
                          macros,
                          hmmDef,
                          SCRIPT_DIR + ext + "NewPhones0.mlf",
-                         SCRIPT_DIR + "phones0.mlf",
+                         CONFIG_DIR + "Words.mlf",
                          SCRIPT_DIR + ext + "_Training_List.scp",
                          MY_DICT_LOC,
                          PHONE_WITH_SP,
@@ -413,13 +406,12 @@ def performRealignment(ext, currentIteration):
 
 
 def createMyOwnFuckingDictionary():
+    if os.path.isfile(MY_DICT_LOC):
+        open(PHONE_DICT_LOC, 'w').close()
 
     for root, subdirs, files in os.walk(TRAINING_AUDIO_DIR):
 
         phones = []
-
-        if os.path.isfile(MY_DICT_LOC):
-            open(PHON_DICT_LOC, 'w').close()
 
         for file in files:
             [name, ext] = file.split(".")
@@ -435,7 +427,7 @@ def transcribeFiles(wrdFile, phnFile, existingDict=[]):
     phn = open(phnFile, 'r')
     wrd = open(wrdFile, 'r')
 
-    dict = open(PHON_DICT_LOC, 'a+')
+    dict = open(PHONE_DICT_LOC, 'a+')
 
     for line in wrd:
         [start, end, word] = line.strip("\n").split("\t")
@@ -478,6 +470,19 @@ def transcribeFiles(wrdFile, phnFile, existingDict=[]):
     dict.close()
 
     return existingDict
+
+def sortFile(filename):
+
+    f = open(filename, "r")
+    # omit empty lines and lines containing only whitespace
+    lines = [line for line in f if line.strip()]
+    f.close()
+
+    lines.sort()
+
+    f = open(filename, 'w')
+    f.writelines(lines)
+    f.close()
 
 command = input("(I)nitiatise, (T)rain, (E)valuate or (Q)uit: ").upper()
 
@@ -677,7 +682,7 @@ while (not command.startswith("Q")):
         sleep(SLEEP_S)
 
         # Recognition test
-        for ext in CLASSIFIER_EXTS:
+        for ext in [".mfc"]:            #TODO: Fix to include all classifiers
             ext = ext.lstrip('.').upper()
 
             hmmDef = str.format("{0}{1}{2}hmm{3}{2}HMMDef", HMM_DIR, ext, SEPARATOR, TRAINING_COUNT)
@@ -686,12 +691,12 @@ while (not command.startswith("Q")):
             MLFOutput = MLF_EVAL.replace("||", ext)
 
             command = str.format("HVite -C {0} -H {1} -S {2} -l '*' -i {3} -w {4} -p 0.0 -s 5.0 {5} {6}",
-                                 HEREST_CONFIG,
+                                 HCOMPV_CONFIG.replace("||", ext),
                                  hmmDef,
                                  listFile,
                                  MLFOutput,
                                  WORD_LOC,
-                                 PHON_DICT_LOC,
+                                 PHONE_DICT_LOC,
                                  PHONE_EVAL
                                  )
 
@@ -721,8 +726,12 @@ while (not command.startswith("Q")):
 
     elif (command.startswith("N")):
         #createMyOwnFuckingDictionary()
+        #sortFile(PHONE_DICT_LOC)
         #buildWordList()
+
         buildDictionary()
+        #sortFile(MY_DICT_LOC)
+        #performRealignment("MFC", 9)
     else:
         print("Invalid option.")
 
