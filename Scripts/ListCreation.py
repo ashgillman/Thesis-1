@@ -6,7 +6,7 @@ from time import sleep
 
 """ Define System Directory Constants """
 if platform.system() == "Windows":
-    FILE_START = "J:\\"
+    FILE_START = "F:\\Thesis\\External\\"
     SEPARATOR = "\\"
 else:
     FILE_START = "/Volumes/External/"
@@ -18,9 +18,13 @@ TRAINING_AUDIO_DIR = str.format("{0}ConvertData{1}ThesisData{1}Desk{1}Testing{1}
 EVAL_AUDIO_DIR = str.format("{0}ConvertData{1}ThesisData{1}Desk{1}Testing{1}Evaluation{1}", FILE_START, SEPARATOR)
 SCRIPT_DIR = str.format("{0}Lists{1}", TRAINING_DIR, SEPARATOR)
 CLASSIFIER_DIR = str.format("{0}Classifiers{1}", TRAINING_DIR, SEPARATOR)
+CLASSIFIER_TRAINING_DIR = str.format("{0}Training{1}", CLASSIFIER_DIR, SEPARATOR)
+CLASSIFIER_EVAL_DIR = str.format("{0}Eval{1}", CLASSIFIER_DIR, SEPARATOR)
 DATA_DIR = str.format("{0}ConvertData{1}", FILE_START, SEPARATOR)
 CONFIG_DIR = str.format("{0}Configs{1}", TRAINING_DIR, SEPARATOR)
 HMM_DIR = str.format("{0}HMMs{1}", TRAINING_DIR, SEPARATOR)
+
+RESULTS_DIR = str.format("{0}Results{1}", TRAINING_DIR, SEPARATOR)
 
 # Extension Constants
 MFC_EXT = ".mfc"
@@ -53,6 +57,7 @@ SIL_CONFIG = TRAINING_DIR + "Training" + SEPARATOR + "sil.hed"
 PHONE_LOC = TRAINING_DIR + "Training" + SEPARATOR + "Monophones"
 PHONE_NO_SP = PHONE_LOC + '0'
 PHONE_WITH_SP = PHONE_LOC + '1'
+PHONE_EVAL = PHONE_LOC + 'E'
 
 # Sleep length
 SLEEP_S = 3
@@ -61,7 +66,17 @@ SLEEP_S = 3
 TRAINING_COUNT = 15
 
 # Dictionary Location
-DICT_LOC = TRAINING_DIR + "Training" + SEPARATOR + "OnlineDict"
+PHON_DICT_LOC = TRAINING_DIR + "Training" + SEPARATOR + "phonedict"
+ONLINE_DICT_LOC = TRAINING_DIR + "Training" + SEPARATOR + "OnlineDict"
+MY_DICT_LOC = TRAINING_DIR + "Training" + SEPARATOR + "MyDict"
+
+# Word file location
+WORD_LOC = TRAINING_DIR + "Training" + SEPARATOR + "WordList"
+WORDNET = TRAINING_DIR + "Training" + SEPARATOR + "WordNet"
+
+# MLF locations
+MLF_TRAINING = CONFIG_DIR + "TrainingPhones.mlf"
+MLF_EVAL = CONFIG_DIR + "Eval||Phones.mlf"
 
 def listAllFiles(dir, ext):
     return [name for name in [f for r,d,f in os.walk(dir)][0] if name.lower().endswith(ext.lower())]
@@ -81,79 +96,59 @@ def buildFileStructure():
 def buildWordList():
     for root, subdirs, files in os.walk(TRAINING_AUDIO_DIR):
 
-        phones = []
+        words = []
 
-        if os.path.isfile(DICT_LOC):
-            open(DICT_LOC, 'w').close()
+        if os.path.isfile(WORD_LOC):
+            open(WORD_LOC, 'w').close()
 
         for file in files:
-            [name, ext] = file.split(".")
+            [_, ext] = file.split(".")
 
-            if ext.lower() in PHONEME_EXT.lower():
-                phnFile = os.path.join(root, file)
-                wrdFile = os.path.join(root, name + WRD_EXT.upper())
+            if ext.lower() in WRD_EXT.lower():
+                wrdFile = os.path.join(root, file)
 
-                if os.path.isfile(phnFile) and os.path.isfile(wrdFile):
-                    phones = transcribeFiles(wrdFile, phnFile, phones)
+                if os.path.isfile(wrdFile):
 
-def transcribeFiles(wrdFile, phnFile, existingDict=[]):
-    phn = open(phnFile, 'r')
-    wrd = open(wrdFile, 'r')
+                    wrd = open(wrdFile, 'r')
 
-    dict = open(DICT_LOC, 'a+')
+                    for line in wrd:
+                        [_, _, word] = line.strip("\n").split("\t")
 
-    for line in wrd:
-        [start, end, word] = line.strip("\n").split("\t")
+                        word = word.strip('.').upper()
 
-        start = int(start)
-        end = int(end)
-        word = word.strip('.')
+                        if word in words:
+                            continue
 
-        if word in existingDict:
-            [_, phnEnd, _] = phn.readline().strip("\n").split("\t")
-            while (int(phnEnd) < end):
-                [_, phnEnd, _] = phn.readline().strip("\n").split("\t")
-            continue
 
-        dict.write(word.ljust(20))
-        existingDict.append(word)
+                        words.append(word)
 
-        [phnStart, phnEnd, phone] = phn.readline().strip("\n").split("\t")
+                    wrd.close()
 
-        phnStart = int(phnStart)
-        phnEnd = int(phnEnd)
 
-        while(phnStart < start):
-            phnLine = phn.readline().strip("\n")
+        wrdList = open(WORD_LOC, 'a+')
+        words.sort()
 
-            [phnStart, phnEnd, phone] = phnLine.split("\t")
-            phnStart = int(phnStart)
-            phnEnd = int(phnEnd)
+        for word in words:
+            wrdList.write(word + "\n")
 
-        while(phnEnd < end):
-            dict.write(phone + " ")
-            phnLine = phn.readline().strip("\n")
-            [_, phnEnd, phone] = phnLine.split("\t")
-            phnEnd = int(phnEnd)
+        wrdList.close()
 
-        dict.write(phone + "\n")
 
-    phn.close()
-    wrd.close()
-    dict.close()
-
-    return existingDict
-
-def createLabFiles():
+def createLabFiles(audioDir, eval=False):
     """
     Recursively traverses the entire audio data directory looking for .phn files and copies them into a .lab file if it
     doesn't already exist.
     """
-    for root, subdirs, files in os.walk(TRAINING_AUDIO_DIR):
+    output = CLASSIFIER_TRAINING_DIR
+    if eval:
+        output = CLASSIFIER_EVAL_DIR
+
+
+    for root, subdirs, files in os.walk(audioDir):
         for file in files:
             [name, ext] = file.split(".")
             phnFile = os.path.join(root, file)
-            labFile = str.format("{0}{1}{2}", CLASSIFIER_DIR, name, LAB_EXT)
+            labFile = str.format("{0}{1}{2}", output, name, LAB_EXT)
 
             if phnFile.lower().endswith(PHONEME_EXT) and not os.path.isfile(labFile):
                 shutil.copyfile(phnFile, labFile)
@@ -173,16 +168,15 @@ def generateConversionList(audioDir, outputFile, eval=False):
 
         for file in files:
             [name, _] = file.split('.')
-
-            folder = "Training" + SEPARATOR
+            output = CLASSIFIER_TRAINING_DIR
             if eval:
-                folder = "Eval" + SEPARATOR
+                output = CLASSIFIER_EVAL_DIR
 
-            output = str.format("{0}{1} {2}{3}{4}{5}",
+
+            output = str.format("{0}{1} {2}{3}{4}",
                         dir,
                         file,
-                        CLASSIFIER_DIR,
-                        folder,
+                        output,
                         name,
                         MFC_EXT)
 
@@ -192,14 +186,14 @@ def generateConversionList(audioDir, outputFile, eval=False):
 
 
 """ Classifier Training Lists """
-def generateClassifierLists(audioDir, outputFile):
-
-    files = listAllFiles(CLASSIFIER_DIR, ext)
+def generateClassifierLists(audioDir, ext, outputFile):
+    ext = ext.lstrip('.').upper()
+    files = listAllFiles(audioDir, ext)
 
     fid = open(outputFile, 'w')
 
     for file in files:
-        fid.write(str.format("{0}{1}\n", CLASSIFIER_DIR, file))
+        fid.write(str.format("{0}{1}\n", audioDir, file))
 
     fid.close()
 
@@ -241,7 +235,6 @@ def generateMLF(audioDir, MLFFile):
 """ Generate the HMM definitions """
 def generateHMMDefs(ext):
     ext = ext.lstrip('.').upper()
-    trainingInformationDir = str.format("{0}{1}{2}", TRAINING_DIR, "Training", SEPARATOR)
 
     hmmDefs = str.format("{0}{1}{2}hmm0{2}HMMDef", HMM_DIR, ext, SEPARATOR)
     proto = str.format("{0}{1}{2}hmm0{2}{1}Proto", HMM_DIR, ext, SEPARATOR) # TODO: Edit proto files of each ext
@@ -353,73 +346,19 @@ def generateSPModel(ext, HMMIteration):
     return spModel
 
 
-def createMyOwnFuckingDictionary():
-
-    for root, subdirs, files in os.walk(TRAINING_AUDIO_DIR):
-
-        phones = []
-
-        if os.path.isfile(DICT_LOC):
-            open(DICT_LOC, 'w').close()
-
-        for file in files:
-            [name, ext] = file.split(".")
-
-            if ext.lower() in PHONEME_EXT.lower():
-                phnFile = os.path.join(root, file)
-                wrdFile = os.path.join(root, name + WRD_EXT.upper())
-
-                if os.path.isfile(phnFile) and os.path.isfile(wrdFile):
-                    phones = transcribeFiles(wrdFile, phnFile, phones)
-
-def transcribeFiles(wrdFile, phnFile, existingDict=[]):
-    phn = open(phnFile, 'r')
-    wrd = open(wrdFile, 'r')
-
-    dict = open(DICT_LOC, 'a+')
-
-    for line in wrd:
-        [start, end, word] = line.strip("\n").split("\t")
-
-        start = int(start)
-        end = int(end)
-        word = word.strip('.')
-
-        if word in existingDict:
-            [_, phnEnd, _] = phn.readline().strip("\n").split("\t")
-            while (int(phnEnd) < end):
-                [_, phnEnd, _] = phn.readline().strip("\n").split("\t")
-            continue
-
-        dict.write(word.ljust(20))
-        existingDict.append(word)
-
-        [phnStart, phnEnd, phone] = phn.readline().strip("\n").split("\t")
-
-        phnStart = int(phnStart)
-        phnEnd = int(phnEnd)
-
-        while(phnStart < start):
-            phnLine = phn.readline().strip("\n")
-
-            [phnStart, phnEnd, phone] = phnLine.split("\t")
-            phnStart = int(phnStart)
-            phnEnd = int(phnEnd)
-
-        while(phnEnd < end):
-            dict.write(phone + " ")
-            phnLine = phn.readline().strip("\n")
-            [_, phnEnd, phone] = phnLine.split("\t")
-            phnEnd = int(phnEnd)
-
-        dict.write(phone + "\n")
-
-    phn.close()
-    wrd.close()
-    dict.close()
-
-    return existingDict
-
+def buildDictionary():
+    command = str.format("HDMan -T 1 -m -w {0} -n {1} -g {2} -i -l {3} {4} {5} {6}",
+                         WORD_LOC,
+                         PHONE_NO_SP,
+                         TRAINING_DIR + "Training" + SEPARATOR + "global.ded",
+                         TRAINING_DIR + "Training" + SEPARATOR + "logFile",
+                         MY_DICT_LOC,
+                         PHON_DICT_LOC,
+                         ONLINE_DICT_LOC
+                         )
+    print(command)
+    input()
+    os.system(command)
 
 
 def performReestimation(ext, currentIteration, includeSPModel=False, includeNewMLF=False):
@@ -465,13 +404,80 @@ def performRealignment(ext, currentIteration):
                          SCRIPT_DIR + ext + "NewPhones0.mlf",
                          SCRIPT_DIR + "phones0.mlf",
                          SCRIPT_DIR + ext + "_Training_List.scp",
-                         DICT_LOC,
+                         MY_DICT_LOC,
                          PHONE_WITH_SP,
                          TRAINING_DIR + "HVITE.log"
                          )
 
     os.system(command)
 
+
+def createMyOwnFuckingDictionary():
+
+    for root, subdirs, files in os.walk(TRAINING_AUDIO_DIR):
+
+        phones = []
+
+        if os.path.isfile(MY_DICT_LOC):
+            open(PHON_DICT_LOC, 'w').close()
+
+        for file in files:
+            [name, ext] = file.split(".")
+
+            if ext.lower() in PHONEME_EXT.lower():
+                phnFile = os.path.join(root, file)
+                wrdFile = os.path.join(root, name + WRD_EXT.upper())
+
+                if os.path.isfile(phnFile) and os.path.isfile(wrdFile):
+                    phones = transcribeFiles(wrdFile, phnFile, phones)
+
+def transcribeFiles(wrdFile, phnFile, existingDict=[]):
+    phn = open(phnFile, 'r')
+    wrd = open(wrdFile, 'r')
+
+    dict = open(PHON_DICT_LOC, 'a+')
+
+    for line in wrd:
+        [start, end, word] = line.strip("\n").split("\t")
+
+        start = int(start)
+        end = int(end)
+        word = word.strip('.').upper()
+
+        if word in existingDict:
+            [_, phnEnd, _] = phn.readline().strip("\n").split("\t")
+            while (int(phnEnd) < end):
+                [_, phnEnd, _] = phn.readline().strip("\n").split("\t")
+            continue
+
+        dict.write(word.ljust(20))
+        existingDict.append(word)
+
+        [phnStart, phnEnd, phone] = phn.readline().strip("\n").split("\t")
+
+        phnStart = int(phnStart)
+        phnEnd = int(phnEnd)
+
+        while(phnStart < start):
+            phnLine = phn.readline().strip("\n")
+
+            [phnStart, phnEnd, phone] = phnLine.split("\t")
+            phnStart = int(phnStart)
+            phnEnd = int(phnEnd)
+
+        while(phnEnd < end):
+            dict.write(phone + " ")
+            phnLine = phn.readline().strip("\n")
+            [_, phnEnd, phone] = phnLine.split("\t")
+            phnEnd = int(phnEnd)
+
+        dict.write(phone + "\n")
+
+    phn.close()
+    wrd.close()
+    dict.close()
+
+    return existingDict
 
 command = input("(I)nitiatise, (T)rain, (E)valuate or (Q)uit: ").upper()
 
@@ -499,14 +505,14 @@ while (not command.startswith("Q")):
         for ext in CLASSIFIER_EXTS:
             ext = ext.lstrip('.').upper()
             listFile = str.format("{0}{1}_Training_List.scp", SCRIPT_DIR, ext)
-            generateClassifierLists(TRAINING_AUDIO_DIR, listFile)
+            generateClassifierLists(CLASSIFIER_TRAINING_DIR, ext, listFile)
         print("Completed")
 
         sleep(SLEEP_S)
 
         # Generate MLF
         print("Generating MLF")
-        generateMLF(TRAINING_AUDIO_DIR, PHONE_NO_SP)
+        generateMLF(TRAINING_AUDIO_DIR, MLF_TRAINING)
         print("Completed")
 
         sleep(SLEEP_S)
@@ -514,6 +520,7 @@ while (not command.startswith("Q")):
         # Generate first pass HMM's
         for ext in ['.mfc']:    #TODO: Update so it can do multiple classifier configs
             ext = ext.lstrip('.').upper()
+            trainingFolder = "Training" + SEPARATOR
 
             script = str.format("{0}{1}_Training_List.scp", SCRIPT_DIR, ext)
             outputFolder = str.format("{0}{1}{2}hmm0", HMM_DIR, ext, SEPARATOR)
@@ -540,14 +547,15 @@ while (not command.startswith("Q")):
 
         # Check if .phn have been converted to .lab files
         print("Checking if .phn -> .lab conversion has occurred")
-        createLabFiles()
+        createLabFiles(TRAINING_AUDIO_DIR)
         print("Completed")
 
         sleep(SLEEP_S)
 
         print("Creating phoneme dictionary (if one doesn't already exist)")
-        if not os.path.isfile(DICT_LOC):
-            createMyOwnFuckingDictionary()
+        if not os.path.isfile(MY_DICT_LOC):
+            pass
+            #createMyOwnFuckingDictionary()
 
         print("Completed")
 
@@ -615,7 +623,7 @@ while (not command.startswith("Q")):
 
             # Realign phonetic data with dictionary
             print("Realigning the training data")
-            # performRealignment(ext, currentIteration)
+            performRealignment(ext, currentIteration)
             print("Completed")
 
             sleep(SLEEP_S)
@@ -637,13 +645,84 @@ while (not command.startswith("Q")):
         # Generate the training wav -> MFC script
         print("Generating the wav -> MFC conversion script")
         wavConvertFile = str.format("{0}{1}{2}", SCRIPT_DIR, "WAV_MFC_EVAL_Conversion_List", SCRIPT_EXT)
-        generateConversionList(EVAL_AUDIO_DIR, wavConvertFile)
+        generateConversionList(EVAL_AUDIO_DIR, wavConvertFile, True)
         print("Completed")
 
         sleep(SLEEP_S)
 
+        # Perform the wav -> MFC conversion
+        convertFile = str.format("{0}{1}{2}", SCRIPT_DIR, "WAV_MFC_EVAL_Conversion_List", SCRIPT_EXT)
+        conversionCommand = str.format("HCopy -T 1 -C {0} -S {1}", MFC_CONVERT_CONFIG, convertFile)
+        print("Performing wav -> MFC conversion")
+        os.system(conversionCommand)
+        print("Completed")
+
+        sleep(SLEEP_S)
+
+        # Generate the classifier lists
+        print("Generating lists for each classifier")
+        for ext in CLASSIFIER_EXTS:
+            ext = ext.lstrip('.').upper()
+            listFile = str.format("{0}{1}_EVAL_List.scp", SCRIPT_DIR, ext)
+            generateClassifierLists(EVAL_AUDIO_DIR, ext, listFile)
+        print("Completed")
+
+        sleep(SLEEP_S)
+
+        # Check if .phn have been converted to .lab files
+        print("Checking if .phn -> .lab conversion has occurred")
+        createLabFiles(EVAL_AUDIO_DIR, True)
+        print("Completed")
+
+        sleep(SLEEP_S)
+
+        # Recognition test
+        for ext in CLASSIFIER_EXTS:
+            ext = ext.lstrip('.').upper()
+
+            hmmDef = str.format("{0}{1}{2}hmm{3}{2}HMMDef", HMM_DIR, ext, SEPARATOR, TRAINING_COUNT)
+            listFile = str.format("{0}{1}_EVAL_List.scp", SCRIPT_DIR, ext)
+
+            MLFOutput = MLF_EVAL.replace("||", ext)
+
+            command = str.format("HVite -C {0} -H {1} -S {2} -l '*' -i {3} -w {4} -p 0.0 -s 5.0 {5} {6}",
+                                 HEREST_CONFIG,
+                                 hmmDef,
+                                 listFile,
+                                 MLFOutput,
+                                 WORD_LOC,
+                                 PHON_DICT_LOC,
+                                 PHONE_EVAL
+                                 )
+
+            print(str.format("Performing recognition test for {0}", ext))
+            #os.system(command)
+            print("Completed")
 
 
+        sleep(SLEEP_S)
+
+        # Results
+        for ext in CLASSIFIER_EXTS:
+            ext = ext.lstrip('.').upper()
+
+            MLFOutput = MLF_EVAL.replace("||", ext)
+
+            command = str.format("HResults -f -p -L {0} {1} {2} > {3}{4}Output.txt",
+                                 CLASSIFIER_EVAL_DIR,
+                                 PHONE_WITH_SP,
+                                 MLFOutput,
+                                 RESULTS_DIR,
+                                 ext)
+
+            print(str.format("Outputing results for {0}", ext))
+            #os.system(command)
+            print("Completed")
+
+    elif (command.startswith("N")):
+        #createMyOwnFuckingDictionary()
+        #buildWordList()
+        buildDictionary()
     else:
         print("Invalid option.")
 
