@@ -1,7 +1,5 @@
-import platform
 import os
-
-__author__ = 'Bdesktop'
+import platform
 
 """ Define System Directory Constants """
 if platform.system() == "Windows":
@@ -11,57 +9,23 @@ else:
     FILE_START = "/Volumes/External/"
     SEPARATOR = "/"
 
-TRAINING_DIR = str.format("{0}ClassifierTraining{1}Training{1}", FILE_START, SEPARATOR)
+# Directory Constants
+TRAINING_DIR = str.format("{0}ClassifierTraining{1}", FILE_START, SEPARATOR)
 
-WORDLIST = TRAINING_DIR + "WordList"
-GRAMMAR = TRAINING_DIR + "GrammarFile"
-WORDNET = TRAINING_DIR + "WordNet"
+AUDIO_DIR = str.format("{0}ConvertData{1}ThesisData{1}Desk{1}Testing{1}", FILE_START, SEPARATOR)
+TRAINING_AUDIO_DIR = str.format("{0}Development{1}", AUDIO_DIR, SEPARATOR)
+PHONEME_EXT = ".phn"
 
-MY_DICT_LOC = TRAINING_DIR + "MyDict"
+for root, subdirs, files in os.walk(TRAINING_AUDIO_DIR):
+    for file in files:
+        [name, ext] = file.split(".")
+        phnFile = os.path.join(root, file)
 
-PHONE_CREATION_SCRIPT = TRAINING_DIR + "mkphones0.led"
+        if phnFile.lower().endswith(PHONEME_EXT):
+            fid = open(phnFile, 'r')
+            lines = fid.readlines()
+            fid.close()
 
-PHONE_OUTPUT = str.format("{0}ClassifierTraining{1}Configs{1}Phones.mlf", FILE_START, SEPARATOR)
-
-WORDS_MLF = str.format("{0}ClassifierTraining{1}Configs{1}Words.mlf", FILE_START, SEPARATOR)
-
-
-def buildGrammarFile():
-    wordlist = open(WORDLIST, 'r');
-    output = "$word = "
-
-    for line in wordlist:
-        line = line.strip("\n")
-        output += line + " | "
-
-    output.strip(" | ")
-
-    output += "\n"
-    output += "( SENT-START ( <$word> ) SENT-END )"
-
-    wordlist.close()
-
-    grammar = open(GRAMMAR, 'w')
-    grammar.write(output)
-    grammar.close()
-
-def createWordNet():
-    command = str.format("HParse {0} {1}",
-                         GRAMMAR,
-                         WORDNET)
-
-    os.system(command)
-
-def createPhoneTranscript():
-
-    command = str.format("HLEd -T 1 -d {0} -i {1} {2} {3}",
-                         MY_DICT_LOC,
-                         PHONE_OUTPUT,
-                         PHONE_CREATION_SCRIPT,
-                         WORDS_MLF
-                         )
-
-    print(command)
-    os.system(command)
-
-createPhoneTranscript()
+            for line in lines:
+                if "oh" in line:
+                    test = 0
