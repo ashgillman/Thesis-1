@@ -72,9 +72,10 @@ SLEEP_S = 3
 TRAINING_COUNT = 15
 
 # Dictionary Location
-PHONE_DICT_LOC = TRAINING_DIR + "Training" + SEPARATOR + "CMUDict"
-ONLINE_DICT_LOC = TRAINING_DIR + "Training" + SEPARATOR + "OnlineDict"
-MY_DICT_LOC = TRAINING_DIR + "Training" + SEPARATOR + "MyDict"
+DICT_PHONE_LOC = TRAINING_DIR + "Training" + SEPARATOR + "CMUDict"
+DICT_ONLINE_LOC = TRAINING_DIR + "Training" + SEPARATOR + "OnlineDict"
+DICT_BUILT_LOC = TRAINING_DIR + "Training" + SEPARATOR + "MyDict"
+DICT_BEEP_LOC = TRAINING_DIR + "Training" + SEPARATOR + "BeepDict"
 
 # Word file location.
 WORDLIST_LOC = TRAINING_DIR + "Training" + SEPARATOR + "WordList"
@@ -89,6 +90,7 @@ MLF_EVAL = CONFIG_DIR + "Eval||Phones.mlf"
 MLF_WORD = CONFIG_DIR + "Words.mlf"
 MLF_PHONES_NO_SP = CONFIG_DIR + "Phones0.mlf"
 MLF_PHONES_WITH_SP = CONFIG_DIR + "Phones1.mlf"
+MLF_REALIGNED = CONFIG_DIR + "Realigned||Phones.mlf"
 
 # HLEd Scripts
 HLED_TRANSCRIBE = TRAINING_DIR + "Training" + SEPARATOR + "mkphones0.led"
@@ -158,11 +160,11 @@ def createLabFiles(audioDir, eval=False):
     for root, subdirs, files in os.walk(audioDir):
         for file in files:
             [name, ext] = file.split(".")
-            phnFile = os.path.join(root, file)
+            wrdFile = os.path.join(root, file)
             labFile = str.format("{0}{1}{2}", output, name, LAB_EXT)
 
-            if phnFile.lower().endswith(PHONEME_EXT) and not os.path.isfile(labFile):
-                shutil.copyfile(phnFile, labFile)
+            if wrdFile.lower().endswith(PHONEME_EXT) and not os.path.isfile(labFile):
+                shutil.copyfile(wrdFile, labFile)
 
 
 """ Generate WAV -> MFC list """
@@ -214,8 +216,8 @@ def generateClassifierLists(audioDir, ext):
 """ Master Label File Creation """
 def generateMLF(outputFile, HLEDscript):
 
-    command = str.format("HLEd -T 1 -l '*' -d {0} -i {1} {2} {3}",
-                         MY_DICT_LOC,
+    command = str.format("HLEd -T 1 -l * -d {0} -i {1} {2} {3}",
+                         DICT_BUILT_LOC,
                          outputFile,
                          HLEDscript,
                          MLF_WORD)
@@ -236,8 +238,8 @@ def generateWordMLF():
         files = listAllFiles(dir, ext)
 
         for file in files:
-
-            label = str.format("\"*\{0}\"", file)
+            [name, _] = file.split('.')
+            label = str.format("\"*/{0}{1}\"", name, LAB_EXT)
 
             wrd = open(dir + file, 'r+')
 
@@ -369,18 +371,47 @@ def generateSPModel(ext, HMMIteration):
 
 
 def buildDictionary():
-    command = str.format("HDMan -T 1 -m -w {0} -n {1} -g {2} -i -l {3} {4} {6} {5}",
+    command = str.format("HDMan -T 1 -m -w {0} -n {1} -g {2} -i -l {3} {4} {5} {6} {7}",
                          SORTED_WORDLIST_LOC,
-                         PHONE_NO_SP,
+                         PHONE_WITH_SP,
                          TRAINING_DIR + "Training" + SEPARATOR + "global.ded",
                          TRAINING_DIR + "Training" + SEPARATOR + "HDManLogFile",
-                         MY_DICT_LOC,
-                         PHONE_DICT_LOC,
-                         ONLINE_DICT_LOC
+                         DICT_BUILT_LOC,
+                         DICT_BEEP_LOC,
+                         DICT_ONLINE_LOC,
+                         DICT_PHONE_LOC
                          )
 
     print(command)
     os.system(command)
+
+    fid = open(DICT_BUILT_LOC, 'a+')
+    fid.write("sent-end".ljust(16))
+    fid.write("[]".ljust(16))
+    fid.write("sil\n")
+    fid.write("sent-start".ljust(16))
+    fid.write("[]".ljust(16))
+    fid.write("sil\n")
+    fid.write("sil".ljust(16))
+    fid.write("[]".ljust(16))
+    fid.write("sil\n")
+    fid.close()
+
+    sortFile(DICT_BUILT_LOC)
+
+def generateMonophoneWithoutSP():
+    withSP = open(PHONE_WITH_SP, 'r')
+    withoutSP = open(PHONE_NO_SP, 'w')
+
+    for line in withSP:
+
+        if "sp" in line:
+            continue
+
+        withoutSP.write(line)
+
+    withSP.close()
+    withoutSP.close()
 
 
 def performReestimation(ext, currentIteration, includeSPModel=False, includeNewMLF=False):
@@ -392,9 +423,9 @@ def performReestimation(ext, currentIteration, includeSPModel=False, includeNewM
         phoneFile = PHONE_NO_SP
 
     if includeNewMLF:
-        mlf = SCRIPT_DIR + ext + "NewPhones0.mlf"
+        mlf = MLF_REALIGNED.replace("||", ext)
     else:
-        mlf = MLF_PHONES_WITH_SP
+        mlf = MLF_PHONES_NO_SP
 
     macros = str.format("{0}{1}{2}hmm{3}{2}{1}Macros", HMM_DIR, ext, SEPARATOR, currentIteration)
     hmmDef = str.format("{0}{1}{2}hmm{3}{2}HMMDef", HMM_DIR, ext, SEPARATOR, currentIteration)
@@ -409,10 +440,6 @@ def performReestimation(ext, currentIteration, includeSPModel=False, includeNewM
                          output,
                          phoneFile
                          )
-
-    print(command)
-    input()
-
     os.system(command)
 
 
@@ -422,14 +449,14 @@ def performRealignment(ext, currentIteration):
     macros = str.format("{0}{1}{2}hmm{3}{2}{1}Macros", HMM_DIR, ext, SEPARATOR, currentIteration)
     hmmDef = str.format("{0}{1}{2}hmm{3}{2}HMMDef", HMM_DIR, ext, SEPARATOR, currentIteration)
 
-    command = str.format("HVite -T 1 -l '*' -o SWT -b SENT-END -C {0} -a -H {1} -H {2} -i {3} -m -t 250.0 150.0 1000.0 -y lab -a -I {4} -S {5} {6} {7} > {8}",
+    command = str.format("HVite -T 1 -l '*' -o SWT -b sent-end -C {0} -a -H {1} -H {2} -i {3} -m -t 250.0 150.0 1000.0 -y lab -a -I {4} -S {5} {6} {7} > {8}",
                          HCOMPV_CONFIG.replace("||", ext),
                          macros,
                          hmmDef,
-                         SCRIPT_DIR + ext + "NewPhones0.mlf",
-                         CONFIG_DIR + "Words.mlf",
+                         MLF_REALIGNED.replace("||", ext),
+                         MLF_WORD,
                          SCRIPT_DIR + ext + "_Training_List.scp",
-                         MY_DICT_LOC,
+                         DICT_BUILT_LOC,
                          PHONE_WITH_SP,
                          TRAINING_DIR + "HVITE.log"
                          )
@@ -438,8 +465,8 @@ def performRealignment(ext, currentIteration):
 
 
 def createMyOwnFuckingDictionary():
-    if os.path.isfile(MY_DICT_LOC):
-        open(PHONE_DICT_LOC, 'w').close()
+    if os.path.isfile(DICT_BUILT_LOC):
+        open(DICT_PHONE_LOC, 'w').close()
 
     for root, subdirs, files in os.walk(TRAINING_AUDIO_DIR):
 
@@ -459,7 +486,7 @@ def transcribeFiles(wrdFile, phnFile, existingDict=[]):
     phn = open(phnFile, 'r')
     wrd = open(wrdFile, 'r')
 
-    dict = open(PHONE_DICT_LOC, 'a+')
+    dict = open(DICT_PHONE_LOC, 'a+')
 
     for line in wrd:
         [start, end, word] = line.strip("\n").split("\t")
@@ -524,7 +551,7 @@ def buildGrammarFile():
         line = line.strip("\n")
         output += line + " | "
 
-    output = output[:-4] + ";"
+    output = output[:-3] + ";"
 
     output += "\n"
     output += "( SENT-START ( <$word> ) SENT-END )"
@@ -626,6 +653,7 @@ while (not command.startswith("Q")):
         # Build Dictionary
         print("Building dictionary")
         buildDictionary()
+        generateMonophoneWithoutSP()
         print("Completed")
 
         sleep(SLEEP_S)
@@ -698,7 +726,7 @@ while (not command.startswith("Q")):
 
         # Check if .phn have been converted to .lab files
         print("Checking if .phn -> .lab conversion has occurred")
-        createLabFiles(TRAINING_AUDIO_DIR)
+        #createLabFiles(TRAINING_AUDIO_DIR)
         print("Completed")
 
         sleep(SLEEP_S)
@@ -835,7 +863,7 @@ while (not command.startswith("Q")):
                                  listFile,
                                  MLFOutput,
                                  WORDLIST_LOC,
-                                 PHONE_DICT_LOC,
+                                 DICT_PHONE_LOC,
                                  PHONE_EVAL
                                  )
 
@@ -867,11 +895,12 @@ while (not command.startswith("Q")):
         #generateMLF(TRAINING_AUDIO_DIR, CONFIG_DIR + "Words.mlf", WRD_EXT.upper(), WRD_EXT.upper())
         #createMyOwnFuckingDictionary()
         #sortFile(PHONE_DICT_LOC)
-        buildWordList()
-        input()
-        buildDictionary()
-        #sortFile(MY_DICT_LOC)
+        #buildWordList()
+        #input()
+        #buildDictionary()
+        generateWordMLF()
         #performRealignment("MFC", 9)
+        #createLabFiles(TRAINING_AUDIO_DIR)
     else:
         print("Invalid option.")
 
