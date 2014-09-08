@@ -39,7 +39,7 @@ AUDIO_EXT = ".wav"
 PHONEME_EXT = ".phn"
 LAB_EXT = ".lab"
 WORD_EXT = ".wrd"
-CLASSIFIER_EXTS = [".stft", ".lpc", ".mfc", ".nnmf"]
+CLASSIFIER_EXTS = [".mfc"] #[".stft", ".lpc", ".mfc", ".nnmf"] #TODO: Replace
 
 # Script File Extension
 SCRIPT_EXT = ".scp"
@@ -66,7 +66,7 @@ PHONE_WITH_SP = PHONE_LOC + '1'
 PHONE_EVAL = PHONE_LOC + 'E'
 
 # Sleep length
-SLEEP_S = 3
+SLEEP_S = 1
 
 # Number of training iterations
 TRAINING_COUNT = 15
@@ -82,7 +82,7 @@ WORDLIST_LOC = TRAINING_DIR + "Training" + SEPARATOR + "WordList"
 SORTED_WORDLIST_LOC = TRAINING_DIR + "Training" + SEPARATOR + "SortedWordList"
 
 GRAMMAR = TRAINING_DIR + "Training" + SEPARATOR + "GrammarFile"
-WORDNET = TRAINING_DIR + "Training" + SEPARATOR + "WordNet"
+WORDNET_LOC = TRAINING_DIR + "Training" + SEPARATOR + "WordNet"
 
 # MLF locations
 MLF_TRAINING = CONFIG_DIR + "TrainingPhones.mlf"
@@ -91,6 +91,7 @@ MLF_WORD = CONFIG_DIR + "Words.mlf"
 MLF_PHONES_NO_SP = CONFIG_DIR + "Phones0.mlf"
 MLF_PHONES_WITH_SP = CONFIG_DIR + "Phones1.mlf"
 MLF_REALIGNED = CONFIG_DIR + "Realigned||Phones.mlf"
+MLF_TEST = CONFIG_DIR + "EvalWords.mlf"
 
 # HLEd Scripts
 HLED_TRANSCRIBE = TRAINING_DIR + "Training" + SEPARATOR + "mkphones0.led"
@@ -128,8 +129,6 @@ def buildWordList():
             if ext.lower() in WORD_EXT.lower():
 
                 wrdFile = os.path.join(root, file)
-
-
 
                 if os.path.isfile(wrdFile):
 
@@ -199,11 +198,13 @@ def generateConversionList(audioDir, outputFile, eval=False):
 
 
 """ Classifier Training Lists """
-def generateClassifierLists(audioDir, ext):
+def generateClassifierLists(audioDir, ext, eval=False):
     ext = ext.lstrip('.').upper()
     files = listAllFiles(audioDir, ext)
-
-    outputFile = str.format("{0}{1}_Training_List.scp", SCRIPT_DIR, ext)
+    if eval:
+        outputFile = str.format("{0}{1}_EVAL_List.scp", SCRIPT_DIR, ext)
+    else:
+        outputFile = str.format("{0}{1}_Training_List.scp", SCRIPT_DIR, ext)
 
     fid = open(outputFile, 'w')
 
@@ -224,17 +225,24 @@ def generateMLF(outputFile, HLEDscript):
 
     os.system(command)
 
-def generateWordMLF():
+def generateWordMLF(eval=False):
     # Overwrite the MLF file
     ext = WORD_EXT.upper()
 
-    fid = open(MLF_WORD, 'w')
+    if eval:
+        audioDir = EVAL_AUDIO_DIR
+        MLFFile = MLF_TEST
+    else:
+        audioDir = TRAINING_AUDIO_DIR
+        MLFFile = MLF_WORD
+
+    fid = open(MLFFile, 'w')
     fid.write("#!MLF!#\n")
     fid.close()
 
-    for folder in os.listdir(TRAINING_AUDIO_DIR):
+    for folder in os.listdir(audioDir):
 
-        dir = str.format("{0}{1}{2}", TRAINING_AUDIO_DIR, folder, SEPARATOR)
+        dir = str.format("{0}{1}{2}", audioDir, folder, SEPARATOR)
         files = listAllFiles(dir, ext)
 
         for file in files:
@@ -243,12 +251,12 @@ def generateWordMLF():
 
             wrd = open(dir + file, 'r+')
 
-            mlf = open(MLF_WORD, 'a+')
+            mlf = open(MLFFile, 'a+')
 
             mlf.write(label + "\n")
 
             for line in wrd:
-                mlf.write(line)
+                mlf.write(line.upper())
 
             mlf.write(".\n")
 
@@ -386,10 +394,10 @@ def buildDictionary():
     os.system(command)
 
     fid = open(DICT_BUILT_LOC, 'a+')
-    fid.write("sent-end".ljust(16))
+    fid.write("SENT-END".ljust(16))
     fid.write("[]".ljust(16))
     fid.write("sil\n")
-    fid.write("sent-start".ljust(16))
+    fid.write("SENT-START".ljust(16))
     fid.write("[]".ljust(16))
     fid.write("sil\n")
     fid.write("sil".ljust(16))
@@ -449,7 +457,7 @@ def performRealignment(ext, currentIteration):
     macros = str.format("{0}{1}{2}hmm{3}{2}{1}Macros", HMM_DIR, ext, SEPARATOR, currentIteration)
     hmmDef = str.format("{0}{1}{2}hmm{3}{2}HMMDef", HMM_DIR, ext, SEPARATOR, currentIteration)
 
-    command = str.format("HVite -T 1 -l '*' -o SWT -b sent-end -C {0} -a -H {1} -H {2} -i {3} -m -t 250.0 150.0 1000.0 -y lab -a -I {4} -S {5} {6} {7} > {8}",
+    command = str.format("HVite -T 1 -l * -o SWT -b SENT-END -C {0} -a -H {1} -H {2} -i {3} -m -t 250.0 150.0 1000.0 -y lab -a -I {4} -S {5} {6} {7} > {8}",
                          HCOMPV_CONFIG.replace("||", ext),
                          macros,
                          hmmDef,
@@ -565,7 +573,7 @@ def buildGrammarFile():
 def createWordNet():
     command = str.format("HParse {0} {1}",
                          GRAMMAR,
-                         WORDNET)
+                         WORDNET_LOC)
 
     os.system(command)
 
@@ -614,6 +622,9 @@ command = input("(I)nitiatise, (T)rain, (E)valuate or (Q)uit: ").upper()
 
 while (not command.startswith("Q")):
     if (command.startswith("I")):
+
+        buildFileStructure()
+
         # Create WordList
         print("Generating word list")
         buildWordList()
@@ -704,7 +715,7 @@ while (not command.startswith("Q")):
         sleep(SLEEP_S)
 
         # Generate first pass HMM's
-        for ext in ['.mfc']:    #TODO: Update so it can do multiple classifier configs
+        for ext in CLASSIFIER_EXTS:    #TODO: Update so it can do multiple classifier configs
             ext = ext.lstrip('.').upper()
 
             print(str.format("Performing {0} HMM initialisation", ext))
@@ -732,7 +743,7 @@ while (not command.startswith("Q")):
         sleep(SLEEP_S)
 
     elif (command.startswith("T")):
-        for ext in [".mfc"]:                # TODO: Handle all classifiers
+        for ext in CLASSIFIER_EXTS:                # TODO: Handle all classifiers
             ext = ext.lstrip('.').upper()
 
             currentIteration = 0
@@ -826,7 +837,7 @@ while (not command.startswith("Q")):
         convertFile = str.format("{0}{1}{2}", SCRIPT_DIR, "WAV_MFC_EVAL_Conversion_List", SCRIPT_EXT)
         conversionCommand = str.format("HCopy -T 1 -C {0} -S {1}", MFC_CONVERT_CONFIG, convertFile)
         print("Performing wav -> MFC conversion")
-        os.system(conversionCommand)
+        #os.system(conversionCommand)
         print("Completed")
 
         sleep(SLEEP_S)
@@ -835,40 +846,37 @@ while (not command.startswith("Q")):
         print("Generating lists for each classifier")
         for ext in CLASSIFIER_EXTS:
             ext = ext.lstrip('.').upper()
-            listFile = str.format("{0}{1}_EVAL_List.scp", SCRIPT_DIR, ext)
-            generateClassifierLists(EVAL_AUDIO_DIR, ext, listFile)
+            generateClassifierLists(CLASSIFIER_EVAL_DIR, ext, True)
         print("Completed")
 
         sleep(SLEEP_S)
 
         # Check if .phn have been converted to .lab files
         print("Checking if .phn -> .lab conversion has occurred")
-        createLabFiles(EVAL_AUDIO_DIR, True)
+        #createLabFiles(EVAL_AUDIO_DIR, True)
         print("Completed")
 
         sleep(SLEEP_S)
 
         # Recognition test
-        for ext in [".mfc"]:            #TODO: Fix to include all classifiers
+        for ext in CLASSIFIER_EXTS:            #TODO: Fix to include all classifiers
             ext = ext.lstrip('.').upper()
 
             hmmDef = str.format("{0}{1}{2}hmm{3}{2}HMMDef", HMM_DIR, ext, SEPARATOR, TRAINING_COUNT)
             listFile = str.format("{0}{1}_EVAL_List.scp", SCRIPT_DIR, ext)
 
-            MLFOutput = MLF_EVAL.replace("||", ext)
-
-            command = str.format("HVite -C {0} -H {1} -S {2} -l '*' -i {3} -w {4} -p 0.0 -s 5.0 {5} {6}",
+            command = str.format("HVite -C {0} -H {1} -S {2} -l * -i {3} -w {4} -y lab -p 0.0 -s 5.0 {5} {6}",
                                  HCOMPV_CONFIG.replace("||", ext),
                                  hmmDef,
                                  listFile,
-                                 MLFOutput,
-                                 WORDLIST_LOC,
-                                 DICT_PHONE_LOC,
-                                 PHONE_EVAL
+                                 MLF_EVAL.replace("||", ext),
+                                 WORDNET_LOC,
+                                 DICT_BUILT_LOC,
+                                 PHONE_WITH_SP
                                  )
 
             print(str.format("Performing recognition test for {0}", ext))
-            #os.system(command)
+            os.system(command)
             print("Completed")
 
 
@@ -880,27 +888,31 @@ while (not command.startswith("Q")):
 
             MLFOutput = MLF_EVAL.replace("||", ext)
 
-            command = str.format("HResults -f -p -L {0} {1} {2} > {3}{4}Output.txt",
-                                 CLASSIFIER_EVAL_DIR,
+            command = str.format("HResults -f -I {0} {1} {2} > {3}{4}Output.txt",
+                                 MLF_TEST,
                                  PHONE_WITH_SP,
                                  MLFOutput,
                                  RESULTS_DIR,
-                                 ext)
+                                 ext
+                                 )
 
             print(str.format("Outputing results for {0}", ext))
-            #os.system(command)
+            os.system(command)
             print("Completed")
 
     elif (command.startswith("N")):
+        buildFileStructure()
         #generateMLF(TRAINING_AUDIO_DIR, CONFIG_DIR + "Words.mlf", WRD_EXT.upper(), WRD_EXT.upper())
         #createMyOwnFuckingDictionary()
-        #sortFile(PHONE_DICT_LOC)
+        #sortFile(DICT_BEEP_LOC)
         #buildWordList()
         #input()
-        #buildDictionary()
-        generateWordMLF()
+        #generateWordMLF(True)
+        # buildDictionary()
+        #generateWordMLF()
         #performRealignment("MFC", 9)
         #createLabFiles(TRAINING_AUDIO_DIR)
+        createWordNet()
     else:
         print("Invalid option.")
 
