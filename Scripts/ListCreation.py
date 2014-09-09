@@ -91,7 +91,7 @@ MLF_WORD = CONFIG_DIR + "Words.mlf"
 MLF_PHONES_NO_SP = CONFIG_DIR + "Phones0.mlf"
 MLF_PHONES_WITH_SP = CONFIG_DIR + "Phones1.mlf"
 MLF_REALIGNED = CONFIG_DIR + "Realigned||Phones.mlf"
-MLF_TEST = CONFIG_DIR + "EvalWords.mlf"
+MLF_EVAL_WORD = CONFIG_DIR + "EvalWords.mlf"
 
 # HLEd Scripts
 HLED_TRANSCRIBE = TRAINING_DIR + "Training" + SEPARATOR + "mkphones0.led"
@@ -215,13 +215,18 @@ def generateClassifierLists(audioDir, ext, eval=False):
 
 
 """ Master Label File Creation """
-def generateMLF(outputFile, HLEDscript):
+def generateMLF(outputFile, HLEDscript, eval=False):
+
+    if eval:
+        mlf = MLF_EVAL_WORD
+    else:
+        mlf = MLF_WORD
 
     command = str.format("HLEd -T 1 -l * -d {0} -i {1} {2} {3}",
-                         DICT_BUILT_LOC,
+                         DICT_BEEP_LOC,
                          outputFile,
                          HLEDscript,
-                         MLF_WORD)
+                         mlf)
 
     os.system(command)
 
@@ -231,7 +236,7 @@ def generateWordMLF(eval=False):
 
     if eval:
         audioDir = EVAL_AUDIO_DIR
-        MLFFile = MLF_TEST
+        MLFFile = MLF_EVAL_WORD
     else:
         audioDir = TRAINING_AUDIO_DIR
         MLFFile = MLF_WORD
@@ -674,13 +679,13 @@ while (not command.startswith("Q")):
         generateWordMLF()
         print("Completed")
 
-        sleep(1)
+        sleep(SLEEP_S)
 
         print("Generating first MLF transcription")
         generateMLF(MLF_PHONES_NO_SP, HLED_TRANSCRIBE)
         print("Completed")
 
-        sleep(1)
+        sleep(SLEEP_S)
 
         print("Generating MLF file with sp between words")
         generateMLF(MLF_PHONES_WITH_SP, HLED_ADD_SP)
@@ -876,7 +881,7 @@ while (not command.startswith("Q")):
                                  )
 
             print(str.format("Performing recognition test for {0}", ext))
-            os.system(command)
+            #os.system(command)
             print("Completed")
 
 
@@ -889,7 +894,7 @@ while (not command.startswith("Q")):
             MLFOutput = MLF_EVAL.replace("||", ext)
 
             command = str.format("HResults -f -I {0} {1} {2} > {3}{4}Output.txt",
-                                 MLF_TEST,
+                                 MLF_EVAL_WORD,
                                  PHONE_WITH_SP,
                                  MLFOutput,
                                  RESULTS_DIR,
@@ -901,7 +906,19 @@ while (not command.startswith("Q")):
             print("Completed")
 
     elif (command.startswith("N")):
-        buildFileStructure()
+        print("Generating first MLF transcription")
+        generateMLF(CONFIG_DIR + "EvalNoSP.mlf", HLED_TRANSCRIBE, True)
+        print("Completed")
+
+        sleep(SLEEP_S)
+
+        print("Generating MLF file with sp between words")
+        generateMLF(CONFIG_DIR + "EvalWithSP.mlf", HLED_ADD_SP, True)
+        print("Completed")
+
+        sleep(SLEEP_S)
+
+        #buildFileStructure()
         #generateMLF(TRAINING_AUDIO_DIR, CONFIG_DIR + "Words.mlf", WRD_EXT.upper(), WRD_EXT.upper())
         #createMyOwnFuckingDictionary()
         #sortFile(DICT_BEEP_LOC)
@@ -912,7 +929,7 @@ while (not command.startswith("Q")):
         #generateWordMLF()
         #performRealignment("MFC", 9)
         #createLabFiles(TRAINING_AUDIO_DIR)
-        createWordNet()
+        #createWordNet()
     else:
         print("Invalid option.")
 
