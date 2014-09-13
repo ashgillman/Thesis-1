@@ -39,7 +39,7 @@ AUDIO_EXT = ".wav"
 PHONEME_EXT = ".phn"
 LAB_EXT = ".lab"
 WORD_EXT = ".wrd"
-CLASSIFIER_EXTS = [".mfc"]  # [".stft", ".lpc", ".mfc", ".nnmf"] #TODO: Replace
+CLASSIFIER_EXTS = [".stft", ".lpc"]  # [".stft", ".lpc", ".mfc", ".nnmf"] #TODO: Replace
 
 # Script File Extension
 SCRIPT_EXT = ".scp"
@@ -54,7 +54,7 @@ SILENCE_PHN = "sil"
 # TODO: Actually write configs
 MFC_CONVERT_CONFIG = CONFIG_DIR + "MFC_Convert_Config.ini"
 HCOMPV_CONFIG = CONFIG_DIR + "||_HCompV_Config.ini"
-PROTO_CONFIG = TRAINING_DIR + "Training" + SEPARATOR + "MFCProto"
+PROTO_CONFIG = str.format("{0}Training{1}ProtoFiles{1}||Proto", TRAINING_DIR, SEPARATOR)
 HEREST_CONFIG = CONFIG_DIR + "Reestimation_Config.ini"
 
 SIL_CONFIG = TRAINING_DIR + "Training" + SEPARATOR + "sil.hed"
@@ -523,18 +523,24 @@ def performReestimation(ext, currentIteration, includeSPModel=False, includeNewM
     else:
         mlf = MLF_TRAINING_PHONE
 
+    if ext == "MFC":
+        pruning = "-t 250.0 150.0 1000.0"
+    else:
+        pruning = ""
+
     macros = str.format("{0}{1}{2}hmm{3}{2}{1}Macros", HMM_DIR, ext, SEPARATOR, currentIteration)
     hmmDef = str.format("{0}{1}{2}hmm{3}{2}HMMDef", HMM_DIR, ext, SEPARATOR, currentIteration)
     output = str.format("{0}{1}{2}hmm{3}", HMM_DIR, ext, SEPARATOR, currentIteration + 1)
 
-    command = str.format("HERest -C {0} -I {1} -t 250.0 150.0 1000.0 -S {2} -H {3} -H {4} -M {5} {6}",
+    command = str.format("HERest -C {0} -I {1} {7} -S {2} -H {3} -H {4} -M {5} {6}",
                          HCOMPV_CONFIG.replace("||", ext),
                          mlf,
                          SCRIPT_DIR + ext + "_Training_List.scp",
                          macros,
                          hmmDef,
                          output,
-                         SORTED_PHONELIST_LOC
+                         SORTED_PHONELIST_LOC,
+                         pruning
     )
 
     os.system(command)
@@ -543,11 +549,16 @@ def performReestimation(ext, currentIteration, includeSPModel=False, includeNewM
 def performRealignment(ext, currentIteration):
     ext = ext.lstrip('.').upper()
 
+    if ext == "MFC":
+        pruning = "-t 250.0 150.0 1000.0"
+    else:
+        pruning = ""
+
     macros = str.format("{0}{1}{2}hmm{3}{2}{1}Macros", HMM_DIR, ext, SEPARATOR, currentIteration)
     hmmDef = str.format("{0}{1}{2}hmm{3}{2}HMMDef", HMM_DIR, ext, SEPARATOR, currentIteration)
 
     command = str.format(
-        "HVite -T 1 -l * -o SWT -b SIL -C {0} -a -H {1} -H {2} -i {3} -m -t 250.0 150.0 1000.0 -y lab -a -I {4} -S {5} {6} {7} > {8}",
+        "HVite -T 1 -l * -o SWT -b SIL -C {0} -a -H {1} -H {2} -i {3} -m {9} -y lab -a -I {4} -S {5} {6} {7} > {8}",
         HCOMPV_CONFIG.replace("||", ext),
         macros,
         hmmDef,
@@ -556,7 +567,8 @@ def performRealignment(ext, currentIteration):
         SCRIPT_DIR + ext + "_Training_List.scp",
         DICT_PHONE_LOC,
         SORTED_PHONELIST_LOC,
-        TRAINING_DIR + "HVITE.log"
+        TRAINING_DIR + "HVITE.log",
+        pruning
     )
 
     os.system(command)
@@ -707,7 +719,7 @@ def generateFirstPassHMM(ext):
                             HCOMPV_CONFIG.replace("||", ext),
                             script,
                             outputFolder,
-                            PROTO_CONFIG)
+                            PROTO_CONFIG.replace("||", ext))
 
     os.system(hmmCommand)
 
@@ -961,7 +973,25 @@ while (not command.startswith("Q")):
             print("Completed")
 
     elif (command.startswith("N")):
-        performRealignment("MFC", 6)
+        for ext in CLASSIFIER_EXTS:  #TODO: Update so it can do multiple classifier configs
+            ext = ext.lstrip('.').upper()
+
+            print(str.format("Performing {0} HMM initialisation", ext))
+            generateFirstPassHMM(ext)
+            print("Completed")
+
+            sleep(SLEEP_S)
+
+            # Generate hmmdef and macro files
+            print("Generating HMM Definitions")
+            generateHMMDefs(ext)
+            print("Completed")
+
+            print("Generating Macros")
+            generateMacros(ext)
+            print("Completed")
+
+            sleep(SLEEP_S)
     else:
         print("Invalid option.")
 
