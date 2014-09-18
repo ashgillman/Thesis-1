@@ -9,13 +9,13 @@ if platform.system() == "Windows":
     FILE_START = "F:\\Thesis\\External\\"
     SEPARATOR = "\\"
 else:
-    FILE_START = "/Volumes/External/"
+    FILE_START = "/Users/Ash/Documents/ThesisData/ASR/"
     SEPARATOR = "/"
 
 # Directory Constants
 TRAINING_DIR = str.format("{0}ClassifierTraining{1}", FILE_START, SEPARATOR)
 
-AUDIO_DIR = str.format("{0}ConvertData{1}ThesisData{1}Desk{1}Testing{1}", FILE_START, SEPARATOR)
+AUDIO_DIR = str.format("{0}TestFiles{1}", FILE_START, SEPARATOR)
 TRAINING_AUDIO_DIR = str.format("{0}Development{1}", AUDIO_DIR, SEPARATOR)
 EVAL_AUDIO_DIR = str.format("{0}Evaluation{1}", AUDIO_DIR, SEPARATOR)
 
@@ -39,7 +39,7 @@ AUDIO_EXT = ".wav"
 PHONEME_EXT = ".phn"
 LAB_EXT = ".lab"
 WORD_EXT = ".wrd"
-CLASSIFIER_EXTS = [".stft", ".lpc"]  # [".stft", ".lpc", ".mfc", ".nnmf"] #TODO: Replace
+CLASSIFIER_EXTS = [".mfc"]#[".stft", ".lpc"]  # [".stft", ".lpc", ".mfc", ".nnmf"] #TODO: Replace
 
 # Script File Extension
 SCRIPT_EXT = ".scp"
@@ -66,10 +66,10 @@ PHONE_WITH_SP = PHONE_LOC + '1'
 PHONE_EVAL = PHONE_LOC + 'E'
 
 # Sleep length
-SLEEP_S = 1
+SLEEP_S = 0.2
 
 # Number of training iterations
-TRAINING_COUNT = 12
+TRAINING_COUNT = 6
 
 # Dictionary Location
 DICT_PHONE_LOC = TRAINING_DIR + "Training" + SEPARATOR + "PhoneDict"
@@ -128,7 +128,7 @@ def buildFileStructure():
 
 def buildPhoneList():
     """ Builds Phoneme list """
-    if os.path.isfile(PHONELIST_LOC):
+    if not os.path.isfile(PHONELIST_LOC):
         open(PHONELIST_LOC, 'w').close()
 
     for root, subdirs, files in os.walk(TRAINING_AUDIO_DIR):
@@ -237,7 +237,7 @@ def generateConversionList(audioDir, outputFile, eval=False):
 
 def generateClassifierLists(audioDir, ext, eval=False):
     ext = ext.lstrip('.').upper()
-    files = listAllFiles(audioDir, ext)
+    files = listAllFiles(audioDir, 'mfc')
     if eval:
         outputFile = str.format("{0}{1}_EVAL_List.scp", SCRIPT_DIR, ext)
     else:
@@ -265,7 +265,7 @@ def generateMLF(outputFile, HLEDscript, eval=False):
                          outputFile,
                          HLEDscript,
                          mlf)
-
+    print(command)
     os.system(command)
 
 
@@ -310,7 +310,7 @@ def generateWordMLF(eval=False):
 
 def generatePhonemeMLF(eval=False):
     # Overwrite the MLF file
-    ext = PHONEME_EXT.upper()
+    ext = PHONEME_EXT.lower()
 
     if eval:
         audioDir = EVAL_AUDIO_DIR
@@ -570,7 +570,7 @@ def performRealignment(ext, currentIteration):
         TRAINING_DIR + "HVITE.log",
         pruning
     )
-
+    print(command)
     os.system(command)
 
 
@@ -720,7 +720,7 @@ def generateFirstPassHMM(ext):
                             script,
                             outputFolder,
                             PROTO_CONFIG.replace("||", ext))
-
+    print(hmmCommand)
     os.system(hmmCommand)
 
 def fixFirstPassHMM(ext):
@@ -805,7 +805,7 @@ while (not command.startswith("Q")):
         convertFile = str.format("{0}{1}{2}", SCRIPT_DIR, "WAV_MFC_Conversion_List", SCRIPT_EXT)
         conversionCommand = str.format("HCopy -T 1 -C {0} -S {1}", MFC_CONVERT_CONFIG, convertFile)
         print("Performing wav -> MFC conversion")
-        # os.system(conversionCommand)
+        os.system(conversionCommand)
         print("Completed")
 
         sleep(SLEEP_S)
@@ -842,7 +842,7 @@ while (not command.startswith("Q")):
 
         # Check if .phn have been converted to .lab files
         print("Checking if .phn -> .lab conversion has occurred")
-        #createLabFiles(TRAINING_AUDIO_DIR)
+        createLabFiles(TRAINING_AUDIO_DIR)
         print("Completed")
 
         sleep(SLEEP_S)
@@ -910,7 +910,7 @@ while (not command.startswith("Q")):
         convertFile = str.format("{0}{1}{2}", SCRIPT_DIR, "WAV_MFC_EVAL_Conversion_List", SCRIPT_EXT)
         conversionCommand = str.format("HCopy -T 1 -C {0} -S {1}", MFC_CONVERT_CONFIG, convertFile)
         print("Performing wav -> MFC conversion")
-        # os.system(conversionCommand)
+        os.system(conversionCommand)
         print("Completed")
 
         sleep(SLEEP_S)
@@ -926,7 +926,7 @@ while (not command.startswith("Q")):
 
         # Check if .phn have been converted to .lab files
         print("Generating correct phone transcriptions")
-        #generatePhonemeMLF(True)
+        generatePhonemeMLF(True)
         print("Completed")
 
         sleep(SLEEP_S)
@@ -949,6 +949,7 @@ while (not command.startswith("Q")):
             )
 
             print(str.format("Performing recognition test for {0}", ext))
+            print(command)
             os.system(command)
             print("Completed")
 
@@ -960,7 +961,7 @@ while (not command.startswith("Q")):
 
             MLFOutput = MLF_EVAL.replace("||", ext)
 
-            command = str.format("HResults -d 5 -f -p -I {0} {1} {2} > {3}{4}Output.txt",
+            command = str.format("HResults -d 5 -h -f -I {0} {1} {2} > {3}{4}Output.txt",
                                  MLF_EVAL_PHONE,
                                  SORTED_PHONELIST_LOC,
                                  MLFOutput,
@@ -969,6 +970,7 @@ while (not command.startswith("Q")):
             )
 
             print(str.format("Outputing results for {0}", ext))
+            print(command)
             os.system(command)
             print("Completed")
 
